@@ -10,7 +10,7 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 | --- | --- |
 | Source repository | [Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat) |
 | Screenshots | [Product tour](#product-tour) |
-| Implementation documentation | [Project structure](#project-structure) and [end-to-end flow](#end-to-end-flow) |
+| Implementation documentation | [Implementation notes](IMPLEMENTATION.md), [project structure](#project-structure), and [end-to-end flow](#end-to-end-flow) |
 | Live demo | [smart-chat-green.vercel.app](https://smart-chat-green.vercel.app/) |
 | Local setup | Follow [Local setup](#local-setup) to run the complete application |
 
