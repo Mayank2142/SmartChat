@@ -2,6 +2,21 @@ export type MessageRole = 'user' | 'bot'
 
 export type MessageStatus = 'sending' | 'sent' | 'failed' | 'retrying'
 
+export type ThemeMode = 'light' | 'dark'
+
+export type ResponseStyle = 'balanced' | 'concise' | 'detailed'
+
+export interface MessageAttachment {
+  id: string
+  name: string
+  mimeType: string
+  size: number
+}
+
+export interface AttachmentPayload extends MessageAttachment {
+  data: string
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -9,6 +24,7 @@ export interface ChatMessage {
   createdAt: string
   status: MessageStatus
   errorMessage?: string
+  attachments?: MessageAttachment[]
 }
 
 export interface ChatSession {
@@ -17,6 +33,7 @@ export interface ChatSession {
   messages: ChatMessage[]
   createdAt: string
   updatedAt: string
+  isTemporary?: boolean
 }
 
 export interface PersistedChatState {

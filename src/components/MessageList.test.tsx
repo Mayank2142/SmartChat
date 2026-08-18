@@ -101,6 +101,21 @@ describe('large conversation rendering', () => {
 })
 
 describe('bot message actions', () => {
+  it('renders common Gemini Markdown as semantic content', () => {
+    const message: ChatMessageType = {
+      id: 'markdown-message',
+      role: 'bot',
+      content: '**Focus first**\n\n- Pick one task\n- Set a timer',
+      createdAt: '2026-08-18T10:30:00.000Z',
+      status: 'sent',
+    }
+
+    render(<ChatMessage message={message} />)
+    expect(screen.getByText('Focus first').tagName).toBe('STRONG')
+    expect(screen.getByRole('list')).toHaveTextContent('Pick one task')
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
   it('copies a bot response without moving keyboard focus', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)

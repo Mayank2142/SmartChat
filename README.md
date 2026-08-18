@@ -1,26 +1,29 @@
 # Darwix AI Chat
 
-Darwix AI Chat is a polished, responsive, and accessible AI-chat frontend built for the Darwix frontend assessment. It demonstrates a complete message lifecycle, resilient error handling, intelligent scrolling, multiple persistent sessions, keyboard-first interaction, and efficient large-history rendering.
+Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat application built for the Darwix frontend assessment. It demonstrates a complete message lifecycle, multimodal attachments, resilient error handling, intelligent scrolling, persistent and temporary sessions, keyboard-first interaction, and efficient large-history rendering.
 
-> The bot response is simulated because the assessment does not specify a backend or LLM provider. The mock service is isolated so it can later be replaced with a real API.
+> Gemini calls pass through the same-origin `/api/chat` server endpoint. The API key is read from the server environment and is never bundled into browser JavaScript.
 
 ## Screenshots
 
-| 320px mobile with a long response | 1440px desktop with a large history |
-| --- | --- |
-| ![Darwix AI mobile interface](output/playwright/phase-8/mobile-320-large-history.png) | ![Darwix AI desktop interface](output/playwright/phase-8/desktop-1440-large-history.png) |
+| 1440px dark theme | 1440px light theme | 320px mobile |
+| --- | --- | --- |
+| ![Darwix AI live Gemini conversation](output/playwright/phase-10/live-gemini-dark.png) | ![Darwix AI light interface](output/playwright/phase-10/desktop-light.png) | ![Darwix AI mobile interface](output/playwright/phase-10/mobile-320-dark.png) |
 
 ## Features
 
-- Responsive dark SaaS interface with restrained gradients and glassmorphism
+- Responsive light and dark themes using the supplied blue, purple, alabaster, cod-gray, and prelude palette
 - Distinct user and assistant messages with accessible timestamps and delivery states
 - Auto-growing multi-line composer with Enter to send and Shift + Enter for a newline
 - Input normalization, 4,000-character limit, counter, and duplicate-submit protection
-- Simulated asynchronous responses with typing, sending, sent, failed, and retrying states
-- Deterministic failure commands, repeated-failure handling, cancellation, and retry without duplication
+- Live Google Gemini Interactions API responses with conversation context and configurable response detail
+- Image, PDF, text, CSV, audio, and video attachments with validation, previews, removal, drag-and-drop, and multimodal delivery
+- Temporary chats that are clearly identified and never written to saved history
+- Sending, sent, failed, and retrying states with cancellation and retry without duplication
 - Smart auto-scroll that follows new content only while the reader is near the bottom
 - Keyboard-accessible Jump to latest control when the reader is viewing older content
-- Multiple sessions with automatic titles, switching, clearing, deletion, and mobile drawer navigation
+- Multiple saved sessions with automatic titles, switching, deletion, collapsible desktop navigation, and a mobile drawer
+- Working settings for theme, response style, and Gemini connection status
 - Versioned LocalStorage history with validation, interrupted-request recovery, and storage-failure fallback
 - Copy action for bot responses with non-disruptive success or failure feedback
 - Progressive history loading designed for conversations containing thousands of messages
@@ -35,7 +38,7 @@ Darwix AI Chat is a polished, responsive, and accessible AI-chat frontend built 
 - Vitest, React Testing Library, user-event, and axe-core
 - Playwright CLI for real-browser auditing
 - GitHub Actions for continuous integration
-- Vercel configuration for static production deployment
+- Vercel configuration for the Vite frontend and secure serverless Gemini endpoint
 
 No state-management, animation, or virtualization library is required.
 
@@ -44,14 +47,16 @@ No state-management, animation, or virtualization library is required.
 ```text
 src/
   components/   Shell, navigation, messages, composer, dialogs, and controls
-  hooks/        Sessions, persistence, smart scroll, announcements, and motion
-  services/     Replaceable mock assistant service
+  hooks/        Sessions, preferences, persistence, smart scroll, and announcements
+  services/     Browser-side same-origin Gemini client
   types/        Chat, message, session, and persistence contracts
-  utils/        Date, message, and versioned storage helpers
+  utils/        Attachments, date, message, and versioned storage helpers
   test/         Shared browser-like test setup
+api/            Vercel `/api/chat` function
+server/         Validated Gemini Interactions API adapter shared with local Vite
 ```
 
-`useChatSessions` owns session state and the asynchronous request lifecycle. UI components receive narrow props and remain focused on presentation and interaction. The mock service is behind a small promise-based contract, so a real API can replace it without changing message components.
+`useChatSessions` owns session state and the asynchronous request lifecycle. UI components receive narrow props and remain focused on presentation and interaction. The browser service sends validated requests only to `/api/chat`; the server adapter builds the Gemini multimodal input and keeps credentials outside the client bundle.
 
 ## Message lifecycle
 
@@ -73,7 +78,7 @@ Loading older history records the current `scrollHeight` and `scrollTop`, prepen
 
 ## Persistence
 
-Chat data is saved to LocalStorage because the assessment is frontend-only and does not require accounts or cloud sync. The stored payload contains a schema version, active session ID, session metadata, messages, timestamps, and delivery states.
+Saved chat data is stored in LocalStorage because the assessment does not require accounts or cloud sync. The payload contains a schema version, active session ID, session metadata, attachment metadata, messages, timestamps, and delivery states.
 
 - Data is validated before restoration.
 - Corrupted or incompatible payloads fall back to a fresh session.
@@ -81,12 +86,13 @@ Chat data is saved to LocalStorage because the assessment is frontend-only and d
 - Quota, privacy-mode, and unavailable-storage errors fall back to in-memory use.
 - Writes occur only after meaningful chat changes, are debounced, and use browser idle time when available.
 - Draft text, hover state, open dialogs, and other transient UI state are not persisted.
+- Temporary conversations and raw attachment bytes are never persisted.
 
 LocalStorage is not secure storage; users should not enter sensitive information.
 
-## Error and retry strategy
+## Gemini, error, and retry strategy
 
-The mock service supports deterministic failures (`/fail` and `/fail-always`), delays, cancellation, and malformed-response validation. A failed message retains its original content and ID. Retry is locked while active, updates that same message to `retrying`, and never appends a duplicate user message. Errors are announced with `role="alert"` without crashing the application.
+The server validates message length, history size, attachment type/count/size, methods, Gemini configuration, upstream status, and response content. A failed message retains its original content and ID. Retry is locked while active, updates that same message to `retrying`, and never appends a duplicate user message. Rate-limit, configuration, authentication, invalid-response, and network errors surface as actionable messages without crashing the application.
 
 ## Accessibility
 
@@ -130,7 +136,7 @@ npm run lint
 npm run build
 ```
 
-The suite covers composition, keyboard behavior, success and failure lifecycles, retries, timestamps, announcements, focus management, smart scrolling, persistence recovery, storage failure, session actions, copy feedback, axe accessibility, scroll anchoring, and the large-history matrix.
+The 42-test suite covers composition, attachments, Gemini request contracts, Markdown rendering, keyboard behavior, success and failure lifecycles, retries, timestamps, announcements, focus management, themes, settings, temporary sessions, smart scrolling, persistence recovery, storage failure, session actions, copy feedback, axe accessibility, scroll anchoring, and the large-history matrix.
 
 Real-browser checks include 320×720, 375×812, 768×1024, 1024×768, and 1440×900 Chromium viewports plus desktop smoke checks in Microsoft Edge and Firefox. They verify horizontal overflow, composer visibility, responsive navigation, keyboard focus wrapping, skip navigation, axe results, console errors, long-message wrapping, and large-history rendering.
 
@@ -140,10 +146,12 @@ Requirements: Node.js 20.19+ or 22.12+ and npm.
 
 ```bash
 npm install
+Copy-Item .env.example .env.local
+# Replace the placeholder with a Gemini API key from Google AI Studio.
 npm run dev
 ```
 
-Vite prints the local development URL. For a production preview:
+The local Vite middleware and deployed Vercel function both read `GEMINI_API_KEY`. `GEMINI_MODEL` is optional and defaults to `gemini-3.6-flash`. Vite prints the local development URL. For a frontend-only production preview:
 
 ```bash
 npm run build
@@ -152,16 +160,16 @@ npm run preview
 
 ## Assumptions and limitations
 
-- Responses are local simulations rather than calls to a real LLM.
+- A Google AI Studio Gemini API key is required for live responses; without it, the UI shows a retryable configuration error.
 - History belongs to one browser profile and is not synchronized between devices.
 - LocalStorage capacity varies, so extremely large histories may eventually switch to in-memory mode.
-- Attachments and response settings are visible future affordances and remain disabled.
+- Attachments are limited to three files and 3 MB total per request so they remain below common serverless request limits.
 - Safari/WebKit and physical iOS/Android devices were not available in this local environment and should receive a final smoke test before public deployment.
 - Repository and live deployment URLs have not been published yet; add them here before assessment submission.
 
 ## Deployment
 
-The repository includes a schema-validated `vercel.json` configuration with the Vite build command, static output directory, Content Security Policy, clickjacking protection, MIME sniffing protection, privacy-oriented permissions, and referrer controls.
+The repository includes a schema-validated `vercel.json` configuration with the Vite build command, static output directory, serverless API discovery, Content Security Policy, clickjacking protection, MIME sniffing protection, privacy-oriented permissions, and referrer controls.
 
 Every push or pull request to `main` runs the GitHub Actions quality workflow using Node.js 22 and a clean `npm ci` install.
 
@@ -170,6 +178,7 @@ After authenticating the required services, the intended publication flow is:
 ```bash
 gh auth login -h github.com
 gh repo create darwix-ai-chat --public --source=. --remote=origin --push
+npx vercel env add GEMINI_API_KEY
 npx vercel --prod
 ```
 

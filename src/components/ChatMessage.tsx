@@ -3,11 +3,14 @@ import {
   CheckCheck,
   CircleAlert,
   Clock3,
+  FileText,
   RotateCw,
 } from 'lucide-react'
 import { memo } from 'react'
 import type { ChatMessage as ChatMessageType, MessageStatus } from '../types/chat'
+import { formatFileSize } from '../utils/attachments'
 import { CopyMessageButton } from './CopyMessageButton'
+import { MarkdownMessage } from './MarkdownMessage'
 import { MessageTimestamp } from './MessageTimestamp'
 import { RetryMessageButton } from './RetryMessageButton'
 
@@ -54,7 +57,22 @@ export const ChatMessage = memo(function ChatMessage({
         )}
 
         <div className={`message-bubble ${isBot ? 'message-bubble-bot' : 'message-bubble-user'}`}>
-          <p className="message-content">{message.content}</p>
+          {isBot ? (
+            <MarkdownMessage content={message.content} />
+          ) : (
+            <p className="message-content">{message.content}</p>
+          )}
+          {message.attachments && message.attachments.length > 0 && (
+            <ul className="message-attachments" aria-label="Message attachments">
+              {message.attachments.map((attachment) => (
+                <li key={attachment.id}>
+                  <FileText size={14} aria-hidden="true" />
+                  <span>{attachment.name}</span>
+                  <small>{formatFileSize(attachment.size)}</small>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className={`message-footer ${isBot ? '' : 'justify-end'}`}>

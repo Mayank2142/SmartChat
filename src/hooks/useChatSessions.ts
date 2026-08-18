@@ -6,8 +6,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { isAbortError, mockChatService } from '../services/mockChatService'
-import type { ChatMessage, ChatSession, PersistedChatState } from '../types/chat'
+import { chatService, isAbortError } from '../services/chatService'
+import type {
+  AttachmentPayload,
+  ChatMessage,
+  ChatSession,
+  PersistedChatState,
+  ResponseStyle,
+} from '../types/chat'
 import { createMessage, createSession, deriveSessionTitle } from '../utils/message'
 import {
   CHAT_STORAGE_VERSION,
@@ -24,6 +30,7 @@ interface ChatState {
 
 type ChatAction =
   | { type: 'session/created'; session: ChatSession }
+  | { type: 'session/temporary-created'; session: ChatSession }
   | { type: 'session/selected'; sessionId: string }
   | { type: 'session/cleared'; sessionId: string; updatedAt: string }
   | {
@@ -69,12 +76,31 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return {
         ...state,
         activeSessionId: action.session.id,
-        sessions: [action.session, ...state.sessions],
+        sessions: [
+          action.session,
+          ...state.sessions.filter((session) => !session.isTemporary),
+        ],
+      }
+
+    case 'session/temporary-created':
+      return {
+        ...state,
+        activeSessionId: action.session.id,
+        sessions: [
+          action.session,
+          ...state.sessions.filter((session) => !session.isTemporary),
+        ],
       }
 
     case 'session/selected':
       return state.sessions.some((session) => session.id === action.sessionId)
-        ? { ...state, activeSessionId: action.sessionId }
+        ? {
+            ...state,
+            activeSessionId: action.sessionId,
+            sessions: state.sessions.filter(
+              (session) => !session.isTemporary || session.id === action.sessionId,
+            ),
+          }
         : state
 
     case 'session/cleared':
@@ -238,14 +264,22 @@ export function useChatSessions() {
   const [state, dispatch] = useReducer(chatReducer, loadedState, initializeState)
   const stateRef = useRef(state)
   const activeRequestsRef = useRef(new Map<string, ActiveRequest>())
+  const attachmentPayloadsRef = useRef(new Map<string, AttachmentPayload[]>())
   stateRef.current = state
 
   const persistedState = useMemo<PersistedChatState>(
-    () => ({
-      version: CHAT_STORAGE_VERSION,
-      activeSessionId: state.activeSessionId,
-      sessions: state.sessions,
-    }),
+    () => {
+      const sessions = state.sessions.filter((session) => !session.isTemporary)
+      return {
+        version: CHAT_STORAGE_VERSION,
+        activeSessionId: sessions.some(
+          (session) => session.id === state.activeSessionId,
+        )
+          ? state.activeSessionId
+          : (sessions[0]?.id ?? null),
+        sessions,
+      }
+    },
     [state.activeSessionId, state.sessions],
   )
   const persistence = useLocalStorage({
@@ -267,19 +301,46 @@ export function useChatSessions() {
       if (request.sessionId !== sessionId) return
       request.controller.abort()
       activeRequestsRef.current.delete(messageId)
+      attachmentPayloadsRef.current.delete(messageId)
+    })
+  }, [])
+
+  const clearSessionAttachmentPayloads = useCallback((sessionId: string) => {
+    const session = stateRef.current.sessions.find(
+      (candidate) => candidate.id === sessionId,
+    )
+    session?.messages.forEach((message) => {
+      attachmentPayloadsRef.current.delete(message.id)
     })
   }, [])
 
   const executeRequest = useCallback(
-    async (sessionId: string, userMessage: ChatMessage, attempt: number) => {
+    async (
+      sessionId: string,
+      userMessage: ChatMessage,
+      responseStyle: ResponseStyle,
+    ) => {
       if (activeRequestsRef.current.has(userMessage.id)) return false
 
       const controller = new AbortController()
       activeRequestsRef.current.set(userMessage.id, { controller, sessionId })
 
       try {
-        const response = await mockChatService.sendMessage(userMessage.content, {
-          attempt,
+        const session = stateRef.current.sessions.find(
+          (candidate) => candidate.id === sessionId,
+        )
+        const history = (session?.messages ?? [])
+          .filter(
+            (message) =>
+              message.id !== userMessage.id &&
+              message.status === 'sent' &&
+              message.content.trim().length > 0,
+          )
+          .map((message) => ({ role: message.role, content: message.content }))
+        const response = await chatService.sendMessage(userMessage.content, {
+          attachments: attachmentPayloadsRef.current.get(userMessage.id),
+          history,
+          responseStyle,
           signal: controller.signal,
         })
         if (
@@ -296,6 +357,7 @@ export function useChatSessions() {
           userMessageId: userMessage.id,
           botMessage: createMessage('bot', response.content),
         })
+        attachmentPayloadsRef.current.delete(userMessage.id)
         return true
       } catch (error) {
         if (isAbortError(error)) return false
@@ -319,17 +381,29 @@ export function useChatSessions() {
   )
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (
+      content: string,
+      attachments: AttachmentPayload[] = [],
+      responseStyle: ResponseStyle = 'balanced',
+    ) => {
       const sessionId = stateRef.current.activeSessionId
-      const userMessage = createMessage('user', content, 'sending')
+      const userMessage = createMessage(
+        'user',
+        content,
+        'sending',
+        attachments.map(({ data: _, ...attachment }) => attachment),
+      )
+      if (attachments.length > 0) {
+        attachmentPayloadsRef.current.set(userMessage.id, attachments)
+      }
       dispatch({ type: 'message/submitted', sessionId, message: userMessage })
-      return executeRequest(sessionId, userMessage, 0)
+      return executeRequest(sessionId, userMessage, responseStyle)
     },
     [executeRequest],
   )
 
   const retryMessage = useCallback(
-    (messageId: string) => {
+    (messageId: string, responseStyle: ResponseStyle = 'balanced') => {
       const sessionId = stateRef.current.activeSessionId
       const session = stateRef.current.sessions.find(
         (candidate) => candidate.id === sessionId,
@@ -347,7 +421,7 @@ export function useChatSessions() {
       }
 
       dispatch({ type: 'message/retrying', sessionId, messageId })
-      return executeRequest(sessionId, message, 1)
+      return executeRequest(sessionId, message, responseStyle)
     },
     [executeRequest],
   )
@@ -358,32 +432,57 @@ export function useChatSessions() {
     return session.id
   }, [])
 
-  const selectSession = useCallback((sessionId: string) => {
-    dispatch({ type: 'session/selected', sessionId })
-  }, [])
+  const createTemporaryChat = useCallback(() => {
+    const existingTemporarySession = stateRef.current.sessions.find(
+      (session) => session.isTemporary,
+    )
+    if (existingTemporarySession) {
+      abortSessionRequests(existingTemporarySession.id)
+      clearSessionAttachmentPayloads(existingTemporarySession.id)
+    }
+    const session = createSession({ temporary: true })
+    dispatch({ type: 'session/temporary-created', session })
+    return session.id
+  }, [abortSessionRequests, clearSessionAttachmentPayloads])
+
+  const selectSession = useCallback(
+    (sessionId: string) => {
+      const activeSession = stateRef.current.sessions.find(
+        (session) => session.id === stateRef.current.activeSessionId,
+      )
+      if (activeSession?.isTemporary && activeSession.id !== sessionId) {
+        abortSessionRequests(activeSession.id)
+        clearSessionAttachmentPayloads(activeSession.id)
+      }
+      dispatch({ type: 'session/selected', sessionId })
+    },
+    [abortSessionRequests, clearSessionAttachmentPayloads],
+  )
 
   const clearSession = useCallback(
     (sessionId: string) => {
       abortSessionRequests(sessionId)
+      clearSessionAttachmentPayloads(sessionId)
       dispatch({
         type: 'session/cleared',
         sessionId,
         updatedAt: new Date().toISOString(),
       })
     },
-    [abortSessionRequests],
+    [abortSessionRequests, clearSessionAttachmentPayloads],
   )
 
   const deleteSession = useCallback(
     (sessionId: string) => {
       abortSessionRequests(sessionId)
+      clearSessionAttachmentPayloads(sessionId)
       dispatch({
         type: 'session/deleted',
         sessionId,
         replacementSession: createSession(),
       })
     },
-    [abortSessionRequests],
+    [abortSessionRequests, clearSessionAttachmentPayloads],
   )
 
   const activeSession =
@@ -391,11 +490,13 @@ export function useChatSessions() {
     state.sessions[0]
   const sessions = useMemo(
     () =>
-      [...state.sessions].sort(
+      state.sessions
+        .filter((session) => !session.isTemporary)
+        .sort(
         (first, second) =>
           new Date(second.updatedAt).getTime() -
           new Date(first.updatedAt).getTime(),
-      ),
+        ),
     [state.sessions],
   )
   const pendingResponses = state.pendingResponses[activeSession.id] ?? 0
@@ -404,6 +505,7 @@ export function useChatSessions() {
     activeSession,
     clearSession,
     createNewChat,
+    createTemporaryChat,
     deleteSession,
     isTyping: pendingResponses > 0,
     pendingResponses,

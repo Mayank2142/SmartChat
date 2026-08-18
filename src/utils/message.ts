@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   ChatSession,
+  MessageAttachment,
   MessageRole,
   MessageStatus,
 } from '../types/chat'
@@ -15,6 +16,7 @@ export function createMessage(
   role: MessageRole,
   content: string,
   status: MessageStatus = 'sent',
+  attachments?: MessageAttachment[],
 ): ChatMessage {
   return {
     id: globalThis.crypto.randomUUID(),
@@ -22,6 +24,7 @@ export function createMessage(
     content,
     createdAt: new Date().toISOString(),
     status,
+    attachments,
   }
 }
 
@@ -33,13 +36,14 @@ export function deriveSessionTitle(content: string) {
     : normalizedTitle
 }
 
-export function createSession(): ChatSession {
+export function createSession(options: { temporary?: boolean } = {}): ChatSession {
   const timestamp = new Date().toISOString()
   return {
     id: globalThis.crypto.randomUUID(),
-    title: 'New conversation',
+    title: options.temporary ? 'Temporary chat' : 'New conversation',
     messages: [],
     createdAt: timestamp,
     updatedAt: timestamp,
+    isTemporary: options.temporary || undefined,
   }
 }

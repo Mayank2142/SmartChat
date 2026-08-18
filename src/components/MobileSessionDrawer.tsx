@@ -71,7 +71,7 @@ export function MobileSessionDrawer({
       inert={backgroundInert ? true : undefined}
     >
       <div
-        className="absolute inset-0 cursor-default bg-slate-950/75 backdrop-blur-sm"
+        className="drawer-backdrop absolute inset-0 cursor-default backdrop-blur-sm"
         aria-hidden="true"
         onClick={onClose}
       />

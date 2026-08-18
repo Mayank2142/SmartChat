@@ -1,70 +1,95 @@
 import {
   Bot,
-  ChevronDown,
+  ChevronLeft,
   MessageCircle,
   MessageSquarePlus,
   Settings,
   Sparkles,
   Trash2,
 } from 'lucide-react'
-import type { ChatSession } from '../types/chat'
+import type { ChatSession, ThemeMode } from '../types/chat'
 import { formatSessionUpdatedAt } from '../utils/date'
+import { ThemeToggle } from './ThemeToggle'
 
 export interface SessionSidebarProps {
   activeSessionId: string
+  collapsed?: boolean
   mobile?: boolean
   persistenceAvailable: boolean
   sessions: ChatSession[]
+  theme: ThemeMode
   onDeleteSession: (session: ChatSession, trigger: HTMLButtonElement) => void
   onNewChat: () => void
+  onOpenSettings: () => void
   onSelectSession: (sessionId: string) => void
+  onThemeChange: (theme: ThemeMode) => void
+  onToggleCollapse?: () => void
 }
 
 export function SessionSidebar({
   activeSessionId,
+  collapsed = false,
   mobile = false,
   persistenceAvailable,
   sessions,
+  theme,
   onDeleteSession,
   onNewChat,
+  onOpenSettings,
   onSelectSession,
+  onThemeChange,
+  onToggleCollapse,
 }: SessionSidebarProps) {
+  const isCollapsed = collapsed && !mobile
+
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-b border-white/7 px-5">
+    <div className={`sidebar-content ${isCollapsed ? 'sidebar-content-collapsed' : ''}`}>
+      <div className="sidebar-brand-row">
         <div className="brand-mark brand-mark-small" aria-hidden="true">
           <Bot size={20} strokeWidth={1.9} />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold tracking-[-0.01em] text-white">
-            Darwix AI
-          </p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
-            <Sparkles size={10} className="text-cyan-300" aria-hidden="true" />
-            Your intelligent workspace
-          </p>
-        </div>
+        {!isCollapsed && (
+          <div className="min-w-0 flex-1">
+            <p className="sidebar-brand-name">Darwix AI</p>
+            <p className="sidebar-brand-tagline">
+              <Sparkles size={10} aria-hidden="true" />
+              Gemini workspace
+            </p>
+          </div>
+        )}
         {!mobile && (
-          <button type="button" className="icon-button" aria-label="Collapse sidebar" disabled>
-            <ChevronDown className="-rotate-90" size={17} aria-hidden="true" />
+          <button
+            type="button"
+            className="icon-button sidebar-collapse-button"
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!isCollapsed}
+            onClick={onToggleCollapse}
+          >
+            <ChevronLeft
+              className={isCollapsed ? 'rotate-180' : undefined}
+              size={17}
+              aria-hidden="true"
+            />
           </button>
         )}
       </div>
 
-      <div className="shrink-0 px-4 pt-4">
+      <div className="sidebar-create-wrap">
         <button
           type="button"
           className="sidebar-new-chat"
           data-new-chat
+          aria-label="New saved conversation"
+          title={isCollapsed ? 'New saved conversation' : undefined}
           onClick={onNewChat}
         >
           <MessageSquarePlus size={17} aria-hidden="true" />
-          New conversation
+          {!isCollapsed && <span>New conversation</span>}
         </button>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-5" aria-label="Chat history">
-        <p className="sidebar-label">Recent</p>
+      <nav className="sidebar-history" aria-label="Chat history">
+        {!isCollapsed && <p className="sidebar-label">Recent</p>}
         <ul className="mt-2 space-y-1">
           {sessions.map((session) => {
             const active = session.id === activeSessionId
@@ -76,51 +101,62 @@ export function SessionSidebar({
                 <button
                   type="button"
                   className="session-select"
+                  aria-label={session.title}
                   aria-current={active ? 'page' : undefined}
+                  title={isCollapsed ? session.title : undefined}
                   onClick={() => onSelectSession(session.id)}
                 >
                   <MessageCircle size={16} className="shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 text-left">
-                    <span className="block truncate text-[13px] font-medium">
-                      {session.title}
+                  {!isCollapsed && (
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="session-title">{session.title}</span>
+                      <span className="session-time">
+                        {session.messages.length === 0
+                          ? 'Empty chat'
+                          : formatSessionUpdatedAt(session.updatedAt)}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                      {session.messages.length === 0
-                        ? 'Empty chat'
-                        : formatSessionUpdatedAt(session.updatedAt)}
-                    </span>
-                  </span>
+                  )}
                 </button>
-                <button
-                  type="button"
-                  className="session-delete"
-                  aria-label={`Delete ${session.title}`}
-                  onClick={(event) => onDeleteSession(session, event.currentTarget)}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
+                {!isCollapsed && (
+                  <button
+                    type="button"
+                    className="session-delete"
+                    aria-label={`Delete ${session.title}`}
+                    onClick={(event) => onDeleteSession(session, event.currentTarget)}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
+                )}
               </li>
             )
           })}
         </ul>
       </nav>
 
-      <div className="shrink-0 border-t border-white/7 p-3">
+      <div className="sidebar-footer">
+        {!isCollapsed && <ThemeToggle theme={theme} onChange={onThemeChange} />}
         <div className="sidebar-profile">
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-500/90 to-blue-500/90 text-xs font-bold text-white">
-            DU
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-slate-200">Darwix User</p>
-            <p className="truncate text-[10px] text-slate-500">
-              <span
-                className={`mr-1.5 inline-block size-1.5 rounded-full ${persistenceAvailable ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                aria-hidden="true"
-              />
-              {persistenceAvailable ? 'History saved locally' : 'History unavailable'}
-            </p>
-          </div>
-          <button type="button" className="icon-button" aria-label="Open settings" disabled>
+          {!isCollapsed && <div className="profile-avatar">DU</div>}
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="profile-name">Darwix User</p>
+              <p className="profile-status">
+                <span
+                  className={`profile-status-dot ${persistenceAvailable ? 'profile-status-dot-ready' : ''}`}
+                  aria-hidden="true"
+                />
+                {persistenceAvailable ? 'History saved locally' : 'History unavailable'}
+              </p>
+            </div>
+          )}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Open settings"
+            title={isCollapsed ? 'Settings' : undefined}
+            onClick={onOpenSettings}
+          >
             <Settings size={16} aria-hidden="true" />
           </button>
         </div>

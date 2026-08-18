@@ -1,29 +1,46 @@
+import { ArrowUp, FileText, Paperclip, SlidersHorizontal, X } from 'lucide-react'
 import {
   useLayoutEffect,
   useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
 } from 'react'
-import { ArrowUp, Paperclip, SlidersHorizontal } from 'lucide-react'
+import type { AttachmentPayload } from '../types/chat'
+import {
+  ACCEPTED_ATTACHMENT_TYPES,
+  formatFileSize,
+  readFileAsAttachment,
+  validateFiles,
+} from '../utils/attachments'
 import { MAX_MESSAGE_LENGTH, normalizeMessageContent } from '../utils/message'
 
 interface ChatComposerProps {
   inputRef: RefObject<HTMLTextAreaElement | null>
   value: string
+  onOpenSettings: () => void
   onValueChange: (value: string) => void
-  onSend: (content: string) => void
+  onSend: (content: string, attachments: AttachmentPayload[]) => void
 }
 
 export function ChatComposer({
   inputRef,
   value,
+  onOpenSettings,
   onValueChange,
   onSend,
 }: ChatComposerProps) {
   const submissionLockRef = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [attachments, setAttachments] = useState<AttachmentPayload[]>([])
+  const [attachmentError, setAttachmentError] = useState('')
+  const [isReadingFiles, setIsReadingFiles] = useState(false)
   const normalizedValue = normalizeMessageContent(value)
-  const canSend = normalizedValue.length > 0
+  const canSend =
+    (normalizedValue.length > 0 || attachments.length > 0) && !isReadingFiles
   const showCount = value.length >= MAX_MESSAGE_LENGTH * 0.8
 
   useLayoutEffect(() => {
@@ -40,13 +57,47 @@ export function ChatComposer({
     if (!canSend || submissionLockRef.current) return
 
     submissionLockRef.current = true
-    onSend(normalizedValue)
+    onSend(normalizedValue || 'Please analyze the attached file.', attachments)
     onValueChange('')
+    setAttachments([])
+    setAttachmentError('')
+    if (fileInputRef.current) fileInputRef.current.value = ''
 
     queueMicrotask(() => {
       submissionLockRef.current = false
       inputRef.current?.focus()
     })
+  }
+
+  const addFiles = async (files: File[]) => {
+    if (files.length === 0) return
+    const validationError = validateFiles(files, attachments)
+    if (validationError) {
+      setAttachmentError(validationError)
+      return
+    }
+
+    setIsReadingFiles(true)
+    setAttachmentError('')
+    try {
+      const preparedFiles = await Promise.all(files.map(readFileAsAttachment))
+      setAttachments((current) => [...current, ...preparedFiles])
+    } catch (error) {
+      setAttachmentError(
+        error instanceof Error ? error.message : 'Could not prepare that attachment.',
+      )
+    } finally {
+      setIsReadingFiles(false)
+    }
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    void addFiles(Array.from(event.target.files ?? []))
+  }
+
+  const handleDrop = (event: DragEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    void addFiles(Array.from(event.dataTransfer.files))
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -67,7 +118,44 @@ export function ChatComposer({
 
   return (
     <div className="composer-wrap">
-      <form className="composer" aria-label="Send a message" onSubmit={handleSubmit}>
+      <form
+        className="composer"
+        aria-label="Send a message"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={handleDrop}
+        onSubmit={handleSubmit}
+      >
+        <input
+          ref={fileInputRef}
+          className="sr-only"
+          type="file"
+          multiple
+          accept={ACCEPTED_ATTACHMENT_TYPES}
+          aria-label="Choose files to attach"
+          onChange={handleFileChange}
+        />
+        {attachments.length > 0 && (
+          <ul className="attachment-list" aria-label="Attached files">
+            {attachments.map((attachment) => (
+              <li key={attachment.id} className="attachment-chip">
+                <FileText size={14} aria-hidden="true" />
+                <span className="attachment-name">{attachment.name}</span>
+                <span className="attachment-size">{formatFileSize(attachment.size)}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${attachment.name}`}
+                  onClick={() =>
+                    setAttachments((current) =>
+                      current.filter((candidate) => candidate.id !== attachment.id),
+                    )
+                  }
+                >
+                  <X size={13} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <label htmlFor="chat-message" className="sr-only">
           Message Darwix AI
         </label>
@@ -78,22 +166,27 @@ export function ChatComposer({
           rows={1}
           maxLength={MAX_MESSAGE_LENGTH}
           className="composer-input"
-          placeholder="Message Darwix AI..."
+          placeholder="Ask Darwix AI anything..."
           value={value}
-          aria-describedby="composer-help composer-count"
+          aria-describedby="composer-help composer-count attachment-error"
           onChange={(event) => onValueChange(event.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className="flex items-end justify-between gap-3 px-2 pb-2">
           <div className="flex items-center gap-1">
-            <button type="button" className="composer-tool" aria-label="Attach a file" disabled>
+            <button
+              type="button"
+              className="composer-tool"
+              aria-label="Attach files"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Paperclip size={17} aria-hidden="true" />
             </button>
             <button
               type="button"
               className="composer-tool"
-              aria-label="Open response options"
-              disabled
+              aria-label="Open response settings"
+              onClick={onOpenSettings}
             >
               <SlidersHorizontal size={16} aria-hidden="true" />
             </button>
@@ -118,8 +211,15 @@ export function ChatComposer({
           </div>
         </div>
       </form>
+      <p
+        id="attachment-error"
+        className="composer-error"
+        role={attachmentError ? 'alert' : undefined}
+      >
+        {attachmentError}
+      </p>
       <p id="composer-help" className="composer-help">
-        Press Enter to send · Shift + Enter for a new line
+        Press Enter to send · Shift + Enter for a new line · Drop files to attach
       </p>
     </div>
   )

@@ -10,7 +10,9 @@ import { JumpToLatestButton } from './components/JumpToLatestButton'
 import { MessageList } from './components/MessageList'
 import { MobileSessionDrawer } from './components/MobileSessionDrawer'
 import { SessionSidebar } from './components/SessionSidebar'
+import { SettingsDialog } from './components/SettingsDialog'
 import { useAutoScroll } from './hooks/useAutoScroll'
+import { useAppPreferences } from './hooks/useAppPreferences'
 import { useChatAnnouncement } from './hooks/useChatAnnouncement'
 import { useChatSessions } from './hooks/useChatSessions'
 import type { ChatSession } from './types/chat'
@@ -22,16 +24,20 @@ interface PendingSessionAction {
 
 function App() {
   const [navigationOpen, setNavigationOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [draft, setDraft] = useState('')
   const [pendingSessionAction, setPendingSessionAction] =
     useState<PendingSessionAction | null>(null)
   const navigationTriggerRef = useRef<HTMLDivElement>(null)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const messageCanvasRef = useRef<HTMLDivElement>(null)
+  const { responseStyle, setResponseStyle, setTheme, theme } =
+    useAppPreferences()
   const {
     activeSession,
-    clearSession,
     createNewChat,
+    createTemporaryChat,
     deleteSession,
     isTyping,
     pendingResponses,
@@ -77,6 +83,11 @@ function App() {
     })
   }, [])
 
+  const openSettings = useCallback(() => {
+    setNavigationOpen(false)
+    setSettingsOpen(true)
+  }, [])
+
   const selectSuggestion = useCallback(
     (prompt: string) => {
       setDraft(prompt)
@@ -87,10 +98,10 @@ function App() {
 
   const retryFailedMessage = useCallback(
     async (messageId: string) => {
-      const succeeded = await retryMessage(messageId)
+      const succeeded = await retryMessage(messageId, responseStyle)
       if (succeeded) composerInputRef.current?.focus()
     },
-    [retryMessage],
+    [responseStyle, retryMessage],
   )
 
   const handleRetry = useCallback(
@@ -106,6 +117,13 @@ function App() {
     focusComposer()
   }, [createNewChat, focusComposer])
 
+  const startTemporaryChat = useCallback(() => {
+    createTemporaryChat()
+    setDraft('')
+    setNavigationOpen(false)
+    focusComposer()
+  }, [createTemporaryChat, focusComposer])
+
   const switchSession = useCallback(
     (sessionId: string) => {
       selectSession(sessionId)
@@ -119,31 +137,28 @@ function App() {
     setPendingSessionAction({ action: 'delete', session })
   }, [])
 
-  const requestClearSession = useCallback(() => {
-    setPendingSessionAction({ action: 'clear', session: activeSession })
-  }, [activeSession])
-
   const confirmSessionAction = useCallback(() => {
     if (!pendingSessionAction) return
 
     if (pendingSessionAction.action === 'delete') {
       deleteSession(pendingSessionAction.session.id)
-    } else {
-      clearSession(pendingSessionAction.session.id)
     }
     setPendingSessionAction(null)
     setNavigationOpen(false)
     setDraft('')
     focusComposer()
-  }, [clearSession, deleteSession, focusComposer, pendingSessionAction])
+  }, [deleteSession, focusComposer, pendingSessionAction])
 
   const sidebarProps = {
     activeSessionId: activeSession.id,
     persistenceAvailable: persistence.available,
     sessions,
+    theme,
     onDeleteSession: (session: ChatSession) => requestDeleteSession(session),
     onNewChat: startNewChat,
+    onOpenSettings: openSettings,
     onSelectSession: switchSession,
+    onThemeChange: setTheme,
   }
 
   return (
@@ -152,8 +167,12 @@ function App() {
       <div aria-hidden="true" className="ambient ambient-secondary" />
 
       <div
-        className="app-frame"
-        inert={navigationOpen || pendingSessionAction !== null ? true : undefined}
+        className={`app-frame ${sidebarCollapsed ? 'app-frame-sidebar-collapsed' : ''}`}
+        inert={
+          navigationOpen || pendingSessionAction !== null || settingsOpen
+            ? true
+            : undefined
+        }
       >
         <a className="skip-link" href="#conversation-messages">
           Skip to conversation
@@ -161,20 +180,26 @@ function App() {
         <a className="skip-link" href="#chat-message">
           Skip to message composer
         </a>
-        <aside className="sidebar-panel hidden min-h-0 lg:block" aria-label="Chat navigation">
-          <SessionSidebar {...sidebarProps} />
+        <aside
+          className={`sidebar-panel hidden min-h-0 lg:block ${sidebarCollapsed ? 'sidebar-panel-collapsed' : ''}`}
+          aria-label="Chat navigation"
+        >
+          <SessionSidebar
+            {...sidebarProps}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          />
         </aside>
 
         <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
           <div ref={navigationTriggerRef}>
             <AppHeader
-              canClear={messages.length > 0}
+              isTemporary={Boolean(activeSession.isTemporary)}
               isTyping={isTyping}
               navigationOpen={navigationOpen}
               title={activeSession.title}
-              onClearChat={requestClearSession}
-              onNewChat={startNewChat}
               onOpenNavigation={openNavigation}
+              onTemporaryChat={startTemporaryChat}
             />
           </div>
 
@@ -186,6 +211,11 @@ function App() {
               <p className="persistence-warning" role="status">
                 {persistence.warning}
               </p>
+            )}
+            {activeSession.isTemporary && (
+              <div className="temporary-chat-notice" role="status">
+                Temporary chat · Messages in this conversation are not saved to history.
+              </div>
             )}
             <div className="message-stage">
               <div
@@ -216,10 +246,14 @@ function App() {
               />
             </div>
             <ChatComposer
+              key={activeSession.id}
               inputRef={composerInputRef}
               value={draft}
+              onOpenSettings={openSettings}
               onValueChange={setDraft}
-              onSend={sendMessage}
+              onSend={(content, attachments) => {
+                void sendMessage(content, attachments, responseStyle)
+              }}
             />
           </main>
         </div>
@@ -227,10 +261,20 @@ function App() {
 
       <MobileSessionDrawer
         {...sidebarProps}
-        backgroundInert={pendingSessionAction !== null}
+        backgroundInert={pendingSessionAction !== null || settingsOpen}
         open={navigationOpen}
         onClose={closeNavigation}
       />
+
+      {settingsOpen && (
+        <SettingsDialog
+          responseStyle={responseStyle}
+          theme={theme}
+          onClose={() => setSettingsOpen(false)}
+          onResponseStyleChange={setResponseStyle}
+          onThemeChange={setTheme}
+        />
+      )}
 
       {pendingSessionAction && (
         <ConfirmSessionDialog

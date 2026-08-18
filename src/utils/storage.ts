@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   ChatSession,
+  MessageAttachment,
   MessageRole,
   MessageStatus,
   PersistedChatState,
@@ -24,6 +25,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isValidDate(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(new Date(value).getTime())
+}
+
+function parseAttachment(value: unknown): MessageAttachment | null {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.name !== 'string' ||
+    typeof value.mimeType !== 'string' ||
+    typeof value.size !== 'number' ||
+    value.size < 0
+  ) {
+    return null
+  }
+
+  return {
+    id: value.id,
+    name: value.name.slice(0, 180),
+    mimeType: value.mimeType.slice(0, 120),
+    size: value.size,
+  }
 }
 
 function parseMessage(value: unknown): ChatMessage | null {
@@ -50,6 +71,11 @@ function parseMessage(value: unknown): ChatMessage | null {
       : typeof value.errorMessage === 'string'
         ? value.errorMessage
         : undefined,
+    attachments: Array.isArray(value.attachments)
+      ? value.attachments
+          .map(parseAttachment)
+          .filter((attachment) => attachment !== null)
+      : undefined,
   }
 }
 
@@ -76,6 +102,7 @@ function parseSession(value: unknown): ChatSession | null {
     messages,
     createdAt,
     updatedAt,
+    isTemporary: undefined,
   }
 }
 
@@ -169,7 +196,19 @@ export function loadChatState(): LoadedChatState {
 
 export function saveChatState(state: PersistedChatState) {
   try {
-    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(state))
+    const persistentSessions = state.sessions.filter(
+      (session) => !session.isTemporary,
+    )
+    const safeState: PersistedChatState = {
+      ...state,
+      activeSessionId: persistentSessions.some(
+        (session) => session.id === state.activeSessionId,
+      )
+        ? state.activeSessionId
+        : (persistentSessions[0]?.id ?? null),
+      sessions: persistentSessions,
+    }
+    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(safeState))
     return true
   } catch {
     return false

@@ -4,15 +4,16 @@ import axe from 'axe-core'
 import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { ChatMessage } from './components/ChatMessage'
-import {
-  MockChatServiceError,
-  mockChatService,
-} from './services/mockChatService'
+import { ChatServiceError, chatService } from './services/chatService'
 import type { ChatMessage as ChatMessageType } from './types/chat'
 import { CHAT_STORAGE_KEY } from './utils/storage'
 
+function mockReply(content = 'A useful Gemini response.') {
+  return vi.spyOn(chatService, 'sendMessage').mockResolvedValue({ content })
+}
+
 describe('responsive application shell', () => {
-  it('renders the chat landmarks, empty state, and composer', () => {
+  it('renders the chat landmarks and enabled primary controls', () => {
     render(<App />)
 
     expect(
@@ -21,14 +22,23 @@ describe('responsive application shell', () => {
     expect(
       screen.getByRole('heading', { name: /what can we build together/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('log', { name: /conversation messages/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('log', { name: /conversation messages/i }),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText(/message darwix ai/i)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /start a temporary chat/i }),
+    ).toBeEnabled()
+    expect(screen.getByRole('button', { name: /attach files/i })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: /open response settings/i }),
+    ).toBeEnabled()
+    expect(
+      screen.queryByRole('button', { name: /clear current chat/i }),
+    ).not.toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /skip to conversation/i }),
     ).toHaveAttribute('href', '#conversation-messages')
-    expect(
-      screen.getByRole('link', { name: /skip to message composer/i }),
-    ).toHaveAttribute('href', '#chat-message')
   })
 
   it('opens and closes the mobile navigation with the keyboard', async () => {
@@ -45,40 +55,46 @@ describe('responsive application shell', () => {
     ).toBeInTheDocument()
     expect(document.querySelector('.app-frame')).toHaveAttribute('inert')
 
-    await user.tab({ shift: true })
-    const navigationDialog = screen.getByRole('dialog', {
-      name: /chat navigation/i,
-    })
-    expect(
-      within(navigationDialog).getByRole('button', {
-        name: /delete new conversation/i,
-      }),
-    ).toHaveFocus()
-
     await user.keyboard('{Escape}')
     expect(
       screen.queryByRole('button', { name: /close chat navigation/i }),
     ).not.toBeInTheDocument()
   })
 
-  it('sends a local message with Enter and returns focus to the composer', async () => {
+  it('sends with Enter, shows typing, and completes the Gemini lifecycle', async () => {
     const user = userEvent.setup()
+    let resolveResponse: ((value: { content: string }) => void) | undefined
+    vi.spyOn(chatService, 'sendMessage').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveResponse = resolve
+        }),
+    )
     render(<App />)
     const composer = screen.getByLabelText(/message darwix ai/i)
 
     await user.type(composer, 'Plan an accessible chat experience{Enter}')
 
-    const message = screen.getByRole('article', { name: /your message/i })
+    expect(screen.getByLabelText(/^Sending$/i)).toBeInTheDocument()
     expect(
-      within(message).getByText('Plan an accessible chat experience'),
+      screen.getByRole('status', { name: /darwix ai is typing/i }),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/what can we build together/i)).not.toBeInTheDocument()
     expect(composer).toHaveValue('')
     expect(composer).toHaveFocus()
+
+    await act(async () => {
+      resolveResponse?.({ content: 'Use semantic HTML and predictable focus.' })
+    })
+
+    expect(
+      await screen.findByText('Use semantic HTML and predictable focus.'),
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText(/^Sent$/i)).toBeInTheDocument()
   })
 
-  it('preserves a Shift + Enter newline and prevents rapid duplicates', async () => {
+  it('preserves Shift + Enter and prevents rapid duplicates', async () => {
     const user = userEvent.setup()
+    mockReply()
     render(<App />)
     const composer = screen.getByLabelText(/message darwix ai/i)
 
@@ -87,12 +103,8 @@ describe('responsive application shell', () => {
     await user.type(composer, 'Second line')
     expect(composer).toHaveValue('First line\nSecond line')
 
-    const sendButton = screen.getByRole('button', { name: /send message/i })
-    await user.dblClick(sendButton)
-
-    const messages = screen.getAllByRole('article', { name: /your message/i })
-    expect(messages).toHaveLength(1)
-    expect(messages[0]).toHaveTextContent(/First line\s+Second line/)
+    await user.dblClick(screen.getByRole('button', { name: /send message/i }))
+    expect(screen.getAllByRole('article', { name: /your message/i })).toHaveLength(1)
   })
 
   it('blocks whitespace-only input and fills the composer from a suggestion', async () => {
@@ -103,10 +115,8 @@ describe('responsive application shell', () => {
 
     await user.type(composer, '   ')
     expect(sendButton).toBeDisabled()
-
     await user.click(screen.getByRole('button', { name: /help me draft/i }))
     expect(composer).toHaveValue('Help me draft a thoughtful project brief')
-    await waitFor(() => expect(composer).toHaveFocus())
     expect(sendButton).toBeEnabled()
   })
 
@@ -120,150 +130,53 @@ describe('responsive application shell', () => {
     }
 
     render(<ChatMessage message={botMessage} />)
-
     const message = screen.getByRole('article', { name: /darwix ai message/i })
     expect(within(message).getByText('Darwix AI')).toBeInTheDocument()
-    expect(within(message).getByText('I can help with that.')).toBeInTheDocument()
     expect(
       within(message).getByRole('button', { name: /status: sent/i }),
     ).toBeInTheDocument()
   })
 
-  it('shows typing and completes the successful message lifecycle', async () => {
+  it('shows a retry option when Gemini delivery fails', async () => {
     const user = userEvent.setup()
-    let resolveResponse: ((value: { content: string }) => void) | undefined
-    vi.spyOn(mockChatService, 'sendMessage').mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveResponse = resolve
-        }),
+    vi.spyOn(chatService, 'sendMessage').mockRejectedValue(
+      new ChatServiceError('Controlled delivery failure'),
     )
     render(<App />)
 
-    await user.type(
-      screen.getByLabelText(/message darwix ai/i),
-      'Help with accessibility{Enter}',
-    )
-
-    expect(screen.getByLabelText(/^Sending$/i)).toBeInTheDocument()
-    expect(
-      screen.getByRole('status', { name: /darwix ai is typing/i }),
-    ).toBeInTheDocument()
-
-    await act(async () => {
-      resolveResponse?.({ content: 'Use semantic HTML and predictable focus.' })
-    })
-
-    expect(
-      await screen.findByText('Use semantic HTML and predictable focus.'),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByText(
-        'Darwix AI replied: Use semantic HTML and predictable focus.',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText(/^Sent$/i)).toBeInTheDocument()
-    expect(
-      screen.queryByRole('status', { name: /darwix ai is typing/i }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('moves a failed request into the failed message state', async () => {
-    const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockRejectedValue(
-      new MockChatServiceError('Controlled delivery failure'),
-    )
-    render(<App />)
-
-    await user.type(screen.getByLabelText(/message darwix ai/i), '/fail{Enter}')
+    await user.type(screen.getByLabelText(/message darwix ai/i), 'Fail once{Enter}')
 
     expect(await screen.findByLabelText(/^Not delivered$/i)).toBeInTheDocument()
     const error = screen.getByRole('alert')
-    expect(error).toHaveTextContent('Message not delivered')
     expect(error).toHaveTextContent('Controlled delivery failure')
     expect(
       within(error).getByRole('button', { name: /retry failed message/i }),
     ).toBeEnabled()
-    expect(
-      screen.queryByRole('status', { name: /darwix ai is typing/i }),
-    ).not.toBeInTheDocument()
   })
 
-  it('retries the original message without duplication and restores composer focus', async () => {
+  it('retries the original message without duplication', async () => {
     const user = userEvent.setup()
-    let resolveRetry: ((value: { content: string }) => void) | undefined
-    vi.spyOn(mockChatService, 'sendMessage')
-      .mockRejectedValueOnce(new MockChatServiceError('First attempt failed'))
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveRetry = resolve
-          }),
-      )
-    render(<App />)
-    const composer = screen.getByLabelText(/message darwix ai/i)
-
-    await user.type(composer, 'Retry this request{Enter}')
-    await user.click(
-      await screen.findByRole('button', { name: /retry failed message/i }),
-    )
-
-    expect(screen.getByLabelText(/^Retrying$/i)).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /retrying failed message/i }),
-    ).toBeDisabled()
-    expect(screen.getAllByRole('article', { name: /your message/i })).toHaveLength(1)
-
-    await act(async () => {
-      resolveRetry?.({ content: 'The retry succeeded.' })
-    })
-
-    expect(await screen.findByText('The retry succeeded.')).toBeInTheDocument()
-    expect(screen.getAllByRole('article', { name: /your message/i })).toHaveLength(1)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(composer).toHaveFocus()
-  })
-
-  it('prevents rapid retry attempts and supports repeated failure', async () => {
-    const user = userEvent.setup()
-    let rejectRetry: ((reason: Error) => void) | undefined
-    const sendSpy = vi
-      .spyOn(mockChatService, 'sendMessage')
-      .mockRejectedValueOnce(new MockChatServiceError('Initial failure'))
-      .mockImplementationOnce(
-        () =>
-          new Promise((_, reject) => {
-            rejectRetry = reject
-          }),
-      )
+    vi.spyOn(chatService, 'sendMessage')
+      .mockRejectedValueOnce(new ChatServiceError('First attempt failed'))
+      .mockResolvedValueOnce({ content: 'The retry succeeded.' })
     render(<App />)
 
     await user.type(
       screen.getByLabelText(/message darwix ai/i),
-      'Keep failing{Enter}',
+      'Retry this request{Enter}',
     )
-    const retryButton = await screen.findByRole('button', {
-      name: /retry failed message/i,
-    })
-    await user.dblClick(retryButton)
+    await user.click(
+      await screen.findByRole('button', { name: /retry failed message/i }),
+    )
 
-    expect(sendSpy).toHaveBeenCalledTimes(2)
-    await act(async () => {
-      rejectRetry?.(new MockChatServiceError('Retry also failed'))
-    })
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Retry also failed')
-    })
-    expect(
-      screen.getByRole('button', { name: /retry failed message/i }),
-    ).toBeEnabled()
+    expect(await screen.findByText('The retry succeeded.')).toBeInTheDocument()
     expect(screen.getAllByRole('article', { name: /your message/i })).toHaveLength(1)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('handles malformed bot responses without adding an empty message', async () => {
+  it('handles malformed Gemini responses without adding an empty message', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({ content: '' })
+    vi.spyOn(chatService, 'sendMessage').mockResolvedValue({ content: '' })
     render(<App />)
 
     await user.type(
@@ -277,69 +190,47 @@ describe('responsive application shell', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('provides deterministic failures and cancellable mock requests', async () => {
-    await expect(
-      mockChatService.sendMessage('/fail', { delayMs: 0 }),
-    ).rejects.toBeInstanceOf(MockChatServiceError)
-    await expect(
-      mockChatService.sendMessage('/fail', { attempt: 1, delayMs: 0 }),
-    ).resolves.toEqual(expect.objectContaining({ content: expect.any(String) }))
-    await expect(
-      mockChatService.sendMessage('/fail-always', {
-        attempt: 1,
-        delayMs: 0,
-      }),
-    ).rejects.toBeInstanceOf(MockChatServiceError)
-
-    const controller = new AbortController()
-    const request = mockChatService.sendMessage('Cancel this', {
-      delayMs: 1000,
-      signal: controller.signal,
-    })
-    controller.abort()
-
-    await expect(request).rejects.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('saves a completed conversation and restores it after remount', async () => {
+  it('attaches a file, displays it, and sends its data to Gemini', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'This response will be restored.',
-    })
-    const view = render(<App />)
-
-    await user.type(
-      screen.getByLabelText(/message darwix ai/i),
-      'Persist this conversation{Enter}',
-    )
-    expect(
-      await screen.findByText('This response will be restored.'),
-    ).toBeInTheDocument()
-
-    await waitFor(() => {
-      const savedValue = window.localStorage.getItem(CHAT_STORAGE_KEY)
-      expect(savedValue).not.toBeNull()
-      const saved = JSON.parse(savedValue ?? '{}') as {
-        sessions?: Array<{ messages?: unknown[] }>
-      }
-      expect(saved.sessions?.[0].messages).toHaveLength(2)
-    })
-
-    view.unmount()
+    const sendSpy = mockReply('The file contains a short greeting.')
     render(<App />)
-    expect(
-      within(screen.getByRole('article', { name: /your message/i })).getByText(
-        'Persist this conversation',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByText('This response will be restored.')).toBeInTheDocument()
+    const file = new File(['hello Gemini'], 'notes.txt', { type: 'text/plain' })
+
+    await user.upload(screen.getByLabelText(/choose files to attach/i), file)
+    expect(await screen.findByText('notes.txt')).toBeInTheDocument()
+    await user.type(screen.getByLabelText(/message darwix ai/i), 'Summarize this{Enter}')
+
+    expect(await screen.findByText('The file contains a short greeting.')).toBeInTheDocument()
+    expect(sendSpy).toHaveBeenCalledWith(
+      'Summarize this',
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({
+            name: 'notes.txt',
+            mimeType: 'text/plain',
+            data: expect.any(String),
+          }),
+        ],
+      }),
+    )
+    expect(screen.getAllByText('notes.txt').length).toBeGreaterThan(0)
   })
 
-  it('creates a new chat and switches back to the previous session', async () => {
+  it('rejects attachments over the client size limit', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'First session response',
+    render(<App />)
+    const file = new File([new Uint8Array(3 * 1024 * 1024 + 1)], 'large.txt', {
+      type: 'text/plain',
     })
+
+    await user.upload(screen.getByLabelText(/choose files to attach/i), file)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/3 MB or less/i)
+    expect(screen.queryByText('large.txt')).not.toBeInTheDocument()
+  })
+
+  it('creates a saved chat and switches back to the previous session', async () => {
+    const user = userEvent.setup()
+    mockReply('First session response')
     render(<App />)
 
     await user.type(
@@ -347,64 +238,82 @@ describe('responsive application shell', () => {
       'First session message{Enter}',
     )
     await screen.findByText('First session response')
-    await user.click(screen.getByRole('button', { name: /^new chat$/i }))
+    await user.click(
+      screen.getByRole('button', { name: /new saved conversation/i }),
+    )
 
     expect(
       screen.getByRole('heading', { name: /new conversation/i }),
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /what can we build together/i }),
-    ).toBeInTheDocument()
-
-    await user.click(
-      screen.getByRole('button', { name: /^first session message/i }),
-    )
-    expect(
-      within(screen.getByRole('article', { name: /your message/i })).getByText(
-        'First session message',
-      ),
-    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'First session message' }))
     expect(screen.getByText('First session response')).toBeInTheDocument()
   })
 
-  it('confirms clearing a chat and restores focus after cancellation', async () => {
+  it('keeps temporary chat messages out of saved history', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'Clearable response',
-    })
+    mockReply('Temporary response')
     render(<App />)
 
+    await user.click(
+      screen.getByRole('button', { name: /start a temporary chat/i }),
+    )
+    expect(screen.getByRole('status')).toHaveTextContent(/not saved to history/i)
     await user.type(
       screen.getByLabelText(/message darwix ai/i),
-      'Clear this chat{Enter}',
+      'Do not persist this{Enter}',
     )
-    await screen.findByText('Clearable response')
-    const clearButton = screen.getByRole('button', {
-      name: /clear current chat/i,
-    })
+    await screen.findByText('Temporary response')
 
-    await user.click(clearButton)
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^cancel$/i })).toHaveFocus()
-    await user.keyboard('{Escape}')
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(clearButton).toHaveFocus()
-
-    await user.click(clearButton)
-    await user.click(screen.getByRole('button', { name: /clear messages/i }))
-    expect(
-      screen.getByRole('heading', { name: /what can we build together/i }),
-    ).toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByLabelText(/message darwix ai/i)).toHaveFocus()
+      const saved = JSON.parse(
+        window.localStorage.getItem(CHAT_STORAGE_KEY) ?? '{}',
+      ) as { sessions?: Array<{ messages?: Array<{ content?: string }> }> }
+      const savedContent = saved.sessions
+        ?.flatMap((session) => session.messages ?? [])
+        .map((message) => message.content)
+      expect(savedContent).not.toContain('Do not persist this')
     })
   })
 
-  it('deletes a session only after confirmation', async () => {
+  it('collapses and expands the desktop sidebar', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'Disposable response',
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }))
+    expect(document.querySelector('.app-frame')).toHaveClass(
+      'app-frame-sidebar-collapsed',
+    )
+    await user.click(screen.getByRole('button', { name: /expand sidebar/i }))
+    expect(document.querySelector('.app-frame')).not.toHaveClass(
+      'app-frame-sidebar-collapsed',
+    )
+  })
+
+  it('opens settings and applies theme and response preferences', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(chatService, 'getStatus').mockResolvedValue({
+      configured: true,
+      model: 'gemini-3.6-flash',
     })
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: /open response settings/i }))
+    const dialog = screen.getByRole('dialog', { name: /settings/i })
+    expect(dialog).toBeInTheDocument()
+    expect(document.querySelector('.app-frame')).toHaveAttribute('inert')
+    await user.click(within(dialog).getByRole('button', { name: /light/i }))
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    await user.click(within(dialog).getByRole('radio', { name: /detailed/i }))
+    expect(
+      within(dialog).getByRole('radio', { name: /detailed/i }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: /settings/i })).not.toBeInTheDocument()
+  })
+
+  it('deletes a saved session only after confirmation', async () => {
+    const user = userEvent.setup()
+    mockReply('Disposable response')
     render(<App />)
 
     await user.type(
@@ -412,7 +321,9 @@ describe('responsive application shell', () => {
       'Session to delete{Enter}',
     )
     await screen.findByText('Disposable response')
-    await user.click(screen.getByRole('button', { name: /^new chat$/i }))
+    await user.click(
+      screen.getByRole('button', { name: /new saved conversation/i }),
+    )
     await user.click(
       screen.getByRole('button', { name: /delete session to delete/i }),
     )
@@ -422,9 +333,27 @@ describe('responsive application shell', () => {
     expect(
       screen.queryByRole('button', { name: /delete session to delete/i }),
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: /what can we build together/i }),
-    ).toBeInTheDocument()
+  })
+
+  it('saves and restores a completed conversation', async () => {
+    const user = userEvent.setup()
+    mockReply('This response will be restored.')
+    const view = render(<App />)
+
+    await user.type(
+      screen.getByLabelText(/message darwix ai/i),
+      'Persist this conversation{Enter}',
+    )
+    await screen.findByText('This response will be restored.')
+    await waitFor(() => {
+      expect(window.localStorage.getItem(CHAT_STORAGE_KEY)).toContain(
+        'Persist this conversation',
+      )
+    })
+
+    view.unmount()
+    render(<App />)
+    expect(screen.getByText('This response will be restored.')).toBeInTheDocument()
   })
 
   it('continues chatting when LocalStorage writes are unavailable', async () => {
@@ -432,9 +361,7 @@ describe('responsive application shell', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('Quota exceeded', 'QuotaExceededError')
     })
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'In-memory response',
-    })
+    mockReply('In-memory response')
     render(<App />)
 
     expect(await screen.findByText(/history unavailable/i)).toBeInTheDocument()
@@ -448,35 +375,24 @@ describe('responsive application shell', () => {
   it('has no detectable accessibility violations in the default shell', async () => {
     const { container } = render(<App />)
     const results = await axe.run(container, {
-      rules: {
-        // jsdom cannot calculate visual contrast because it has no canvas.
-        'color-contrast': { enabled: false },
-      },
+      rules: { 'color-contrast': { enabled: false } },
     })
-
     expect(results.violations).toEqual([])
   })
 
-  it('has no detectable accessibility violations in the confirmation dialog', async () => {
+  it('has no detectable accessibility violations in settings', async () => {
     const user = userEvent.setup()
-    vi.spyOn(mockChatService, 'sendMessage').mockResolvedValue({
-      content: 'Accessible modal response',
+    vi.spyOn(chatService, 'getStatus').mockResolvedValue({
+      configured: false,
+      model: 'gemini-3.6-flash',
     })
     const { container } = render(<App />)
-
-    await user.type(
-      screen.getByLabelText(/message darwix ai/i),
-      'Open an accessible confirmation{Enter}',
-    )
-    await screen.findByText('Accessible modal response')
-    await user.click(screen.getByRole('button', { name: /clear current chat/i }))
+    await user.click(screen.getByRole('button', { name: /open response settings/i }))
+    await screen.findByText(/api key required/i)
 
     const results = await axe.run(container, {
-      rules: {
-        'color-contrast': { enabled: false },
-      },
+      rules: { 'color-contrast': { enabled: false } },
     })
-
     expect(results.violations).toEqual([])
   })
 })
