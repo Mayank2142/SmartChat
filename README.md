@@ -4,11 +4,31 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 
 > Gemini calls pass through the same-origin `/api/chat` server endpoint. The API key is read from the server environment and is never bundled into browser JavaScript.
 
-## Screenshots
+## Product tour
 
-| Live clean answer | Thinking and send lock | 320px mobile |
+### Conversation experience
+
+| Clean Markdown response | Thinking state and request lock |
+| --- | --- |
+| ![Darwix AI rendering a clean Markdown response in dark mode](output/playwright/phase-11/live-clean-markdown-dark.png) | ![Darwix AI showing its thinking indicator while the send action is locked](output/playwright/phase-11/thinking-lock-dark.png) |
+
+The conversation view keeps user and assistant messages visually distinct, renders structured answers without exposing raw Markdown markers, and makes the active response state clear.
+
+### Light theme, dark theme, and settings
+
+| Dark theme | Light theme | Working settings dialog |
 | --- | --- | --- |
-| ![Darwix AI clean formatted answer](output/playwright/phase-11/live-clean-markdown-dark.png) | ![Darwix AI thinking state with disabled send](output/playwright/phase-11/thinking-lock-dark.png) | ![Darwix AI mobile interface](output/playwright/phase-11/mobile-clean-markdown-dark.png) |
+| ![Darwix AI desktop dark theme](output/playwright/phase-10/desktop-dark.png) | ![Darwix AI desktop light theme](output/playwright/phase-10/desktop-light.png) | ![Darwix AI settings dialog in light theme](output/playwright/phase-10/settings-light.png) |
+
+Both themes use the Darwix blue-to-purple palette, restrained glass surfaces, visible focus treatment, and the same responsive layout behavior.
+
+### Mobile responsiveness and large histories
+
+| 320px mobile conversation | Desktop large-history view | Mobile large-history view |
+| --- | --- | --- |
+| ![Darwix AI conversation at a 320 pixel mobile viewport](output/playwright/phase-11/mobile-clean-markdown-dark.png) | ![Darwix AI rendering a large conversation on desktop](output/playwright/phase-8/desktop-1440-large-history.png) | ![Darwix AI rendering a large conversation on mobile](output/playwright/phase-8/mobile-320-large-history.png) |
+
+The composer stays reachable at narrow widths, navigation moves into a mobile drawer, and progressive history loading bounds the number of mounted message elements.
 
 ## Features
 
