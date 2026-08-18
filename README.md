@@ -4,6 +4,15 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 
 > Gemini calls pass through the same-origin `/api/chat` server endpoint. The API key is read from the server environment and is never bundled into browser JavaScript.
 
+## Submission
+
+| Deliverable | Location |
+| --- | --- |
+| Source repository | [Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat) |
+| Screenshots | [Product tour](#product-tour) |
+| Implementation documentation | [Project structure](#project-structure) and [end-to-end flow](#end-to-end-flow) |
+| Local demo | Follow [Local setup](#local-setup) to run the complete application |
+
 ## Product tour
 
 ### Conversation experience
@@ -239,7 +248,7 @@ npm run preview
 - LocalStorage capacity varies, so extremely large histories may eventually switch to in-memory mode.
 - Attachments are limited to three files and 3 MB total per request so they remain below common serverless request limits.
 - Safari/WebKit and physical iOS/Android devices were not available in this local environment and should receive a final smoke test before public deployment.
-- Repository and live deployment URLs have not been published yet; add them here before assessment submission.
+- The source repository is published at [github.com/Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat). A hosted live-demo URL is not included, so reviewers should use the documented local setup.
 
 ## Deployment
 
@@ -247,13 +256,12 @@ The repository includes a schema-validated `vercel.json` configuration with the 
 
 Every push or pull request to `main` runs the GitHub Actions quality workflow using Node.js 22 and a clean `npm ci` install.
 
-After authenticating the required services, the intended publication flow is:
+The repository is configured for the following publication flow:
 
 ```bash
-gh auth login -h github.com
-gh repo create darwix-ai-chat --public --source=. --remote=origin --push
+git push origin main
 npx vercel env add GEMINI_API_KEY
 npx vercel --prod
 ```
 
-No live URL has been published from the current environment because its saved GitHub credential is invalid and no Vercel account is configured. Replace this paragraph with the repository and deployment links after authentication.
+The source code and versioned screenshots are available in the [SmartChat repository](https://github.com/Mayank2142/SmartChat). Vercel deployment remains optional and requires configuring `GEMINI_API_KEY` in the deployment environment.
