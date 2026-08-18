@@ -8,7 +8,7 @@ import { ChatServiceError, chatService } from './services/chatService'
 import type { ChatMessage as ChatMessageType } from './types/chat'
 import { CHAT_STORAGE_KEY } from './utils/storage'
 
-function mockReply(content = 'A useful Gemini response.') {
+function mockReply(content = 'A useful Darwix AI response.') {
   return vi.spyOn(chatService, 'sendMessage').mockResolvedValue({ content })
 }
 
@@ -61,7 +61,7 @@ describe('responsive application shell', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('sends with Enter, shows typing, and completes the Gemini lifecycle', async () => {
+  it('sends with Enter, shows thinking, and completes the Darwix AI lifecycle', async () => {
     const user = userEvent.setup()
     let resolveResponse: ((value: { content: string }) => void) | undefined
     vi.spyOn(chatService, 'sendMessage').mockImplementation(
@@ -77,8 +77,9 @@ describe('responsive application shell', () => {
 
     expect(screen.getByLabelText(/^Sending$/i)).toBeInTheDocument()
     expect(
-      screen.getByRole('status', { name: /darwix ai is typing/i }),
+      screen.getByRole('status', { name: /darwix ai is thinking/i }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
     expect(composer).toHaveValue('')
     expect(composer).toHaveFocus()
 
@@ -90,6 +91,47 @@ describe('responsive application shell', () => {
       await screen.findByText('Use semantic HTML and predictable focus.'),
     ).toBeInTheDocument()
     expect(screen.getByLabelText(/^Sent$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /send message/i })).toBeDisabled()
+  })
+
+  it('keeps the draft but blocks every second submission until the active response finishes', async () => {
+    const user = userEvent.setup()
+    let resolveFirstResponse: ((value: { content: string }) => void) | undefined
+    const sendSpy = vi
+      .spyOn(chatService, 'sendMessage')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirstResponse = resolve
+          }),
+      )
+      .mockResolvedValueOnce({ content: 'Second answer.' })
+    render(<App />)
+    const composer = screen.getByLabelText(/message darwix ai/i)
+    const sendButton = screen.getByRole('button', { name: /send message/i })
+
+    await user.type(composer, 'First request{Enter}')
+    expect(sendButton).toBeDisabled()
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+
+    await user.type(composer, 'Second request')
+    await user.keyboard('{Enter}')
+    await user.dblClick(sendButton)
+
+    expect(composer).toHaveValue('Second request')
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByRole('article', { name: /your message/i })).toHaveLength(1)
+    expect(screen.getByRole('status', { name: /darwix ai is thinking/i })).toBeInTheDocument()
+
+    await act(async () => {
+      resolveFirstResponse?.({ content: 'First answer.' })
+    })
+    await waitFor(() => expect(sendButton).toBeEnabled())
+
+    await user.click(composer)
+    await user.keyboard('{Enter}')
+    expect(sendSpy).toHaveBeenCalledTimes(2)
+    expect(await screen.findByText('Second answer.')).toBeInTheDocument()
   })
 
   it('preserves Shift + Enter and prevents rapid duplicates', async () => {
@@ -137,7 +179,23 @@ describe('responsive application shell', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows a retry option when Gemini delivery fails', async () => {
+  it('announces formatted answers as clean text without Markdown symbols', async () => {
+    const user = userEvent.setup()
+    mockReply('**API** means **Application Programming Interface**.')
+    render(<App />)
+
+    await user.type(
+      screen.getByLabelText(/message darwix ai/i),
+      'What is API?{Enter}',
+    )
+
+    const announcement = await screen.findByText(
+      'Darwix AI replied: API means Application Programming Interface.',
+    )
+    expect(announcement).not.toHaveTextContent('**')
+  })
+
+  it('shows a retry option when Darwix AI delivery fails', async () => {
     const user = userEvent.setup()
     vi.spyOn(chatService, 'sendMessage').mockRejectedValue(
       new ChatServiceError('Controlled delivery failure'),
@@ -174,7 +232,7 @@ describe('responsive application shell', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('handles malformed Gemini responses without adding an empty message', async () => {
+  it('handles malformed responses without adding an empty message', async () => {
     const user = userEvent.setup()
     vi.spyOn(chatService, 'sendMessage').mockResolvedValue({ content: '' })
     render(<App />)
@@ -190,11 +248,11 @@ describe('responsive application shell', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('attaches a file, displays it, and sends its data to Gemini', async () => {
+  it('attaches a file, displays it, and sends its data to Darwix AI', async () => {
     const user = userEvent.setup()
     const sendSpy = mockReply('The file contains a short greeting.')
     render(<App />)
-    const file = new File(['hello Gemini'], 'notes.txt', { type: 'text/plain' })
+    const file = new File(['hello Darwix AI'], 'notes.txt', { type: 'text/plain' })
 
     await user.upload(screen.getByLabelText(/choose files to attach/i), file)
     expect(await screen.findByText('notes.txt')).toBeInTheDocument()
@@ -300,6 +358,8 @@ describe('responsive application shell', () => {
     await user.click(screen.getByRole('button', { name: /open response settings/i }))
     const dialog = screen.getByRole('dialog', { name: /settings/i })
     expect(dialog).toBeInTheDocument()
+    expect(dialog).not.toHaveTextContent(/Gemini/i)
+    expect(within(dialog).getByText(/darwix ai connection/i)).toBeInTheDocument()
     expect(document.querySelector('.app-frame')).toHaveAttribute('inert')
     await user.click(within(dialog).getByRole('button', { name: /light/i }))
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')

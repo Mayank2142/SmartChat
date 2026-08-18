@@ -6,6 +6,17 @@ interface LatestMessageState {
   sessionId: string
 }
 
+export function markdownToPlainText(content: string) {
+  return content
+    .replace(/```[^\n]*\n?/g, '')
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^)\s]+\)/g, '$1')
+    .replace(/\\([*_`])/g, '$1')
+    .replace(/[*_`#]+/g, '')
+    .replace(/^\s*(?:[-+] |\d+\. )/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function useChatAnnouncement(
   sessionId: string,
   latestMessage?: ChatMessage,
@@ -24,7 +35,9 @@ export function useChatAnnouncement(
     if (sessionChanged) {
       setAnnouncement('')
     } else if (messageChanged && latestMessage?.role === 'bot') {
-      setAnnouncement(`Darwix AI replied: ${latestMessage.content}`)
+      setAnnouncement(
+        `Darwix AI replied: ${markdownToPlainText(latestMessage.content)}`,
+      )
     } else if (messageChanged && latestMessage?.role === 'user') {
       setAnnouncement('')
     }

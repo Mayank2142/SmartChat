@@ -386,6 +386,8 @@ export function useChatSessions() {
       attachments: AttachmentPayload[] = [],
       responseStyle: ResponseStyle = 'balanced',
     ) => {
+      if (activeRequestsRef.current.size > 0) return Promise.resolve(false)
+
       const sessionId = stateRef.current.activeSessionId
       const userMessage = createMessage(
         'user',
@@ -415,7 +417,7 @@ export function useChatSessions() {
         !message ||
         message.role !== 'user' ||
         message.status !== 'failed' ||
-        activeRequestsRef.current.has(messageId)
+        activeRequestsRef.current.size > 0
       ) {
         return Promise.resolve(false)
       }
@@ -500,6 +502,9 @@ export function useChatSessions() {
     [state.sessions],
   )
   const pendingResponses = state.pendingResponses[activeSession.id] ?? 0
+  const isGenerating = state.sessions.some(
+    (session) => (state.pendingResponses[session.id] ?? 0) > 0,
+  )
 
   return {
     activeSession,
@@ -507,6 +512,7 @@ export function useChatSessions() {
     createNewChat,
     createTemporaryChat,
     deleteSession,
+    isGenerating,
     isTyping: pendingResponses > 0,
     pendingResponses,
     persistence,

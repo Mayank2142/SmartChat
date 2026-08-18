@@ -37,7 +37,7 @@ export function AppHeader({
               {title}
             </h1>
             <span className="assistant-badge hidden sm:inline-flex">
-              {isTemporary ? 'Temporary' : 'Gemini powered'}
+              {isTemporary ? 'Temporary' : 'Darwix AI'}
             </span>
           </div>
           <p className="app-subtitle">
@@ -47,7 +47,7 @@ export function AppHeader({
               <ShieldCheck size={12} aria-hidden="true" />
             )}
             {isTyping
-              ? 'Darwix is responding'
+              ? 'Darwix AI is responding'
               : isTemporary
                 ? 'Not saved to history'
                 : 'Saved locally on this device'}

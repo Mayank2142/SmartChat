@@ -39,6 +39,7 @@ function App() {
     createNewChat,
     createTemporaryChat,
     deleteSession,
+    isGenerating,
     isTyping,
     pendingResponses,
     persistence,
@@ -191,7 +192,7 @@ function App() {
           />
         </aside>
 
-        <div className="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+        <div className="workspace-shell grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
           <div ref={navigationTriggerRef}>
             <AppHeader
               isTemporary={Boolean(activeSession.isTemporary)}
@@ -235,7 +236,7 @@ function App() {
                     containerRef={messageCanvasRef}
                     messages={messages}
                     isTyping={isTyping}
-                    pendingResponses={pendingResponses}
+                    retryDisabled={isGenerating}
                     onRetry={handleRetry}
                   />
                 )}
@@ -248,6 +249,7 @@ function App() {
             <ChatComposer
               key={activeSession.id}
               inputRef={composerInputRef}
+              isGenerating={isGenerating}
               value={draft}
               onOpenSettings={openSettings}
               onValueChange={setDraft}

@@ -101,7 +101,7 @@ describe('large conversation rendering', () => {
 })
 
 describe('bot message actions', () => {
-  it('renders common Gemini Markdown as semantic content', () => {
+  it('renders assistant Markdown as semantic content without raw markers', () => {
     const message: ChatMessageType = {
       id: 'markdown-message',
       role: 'bot',
@@ -114,6 +114,27 @@ describe('bot message actions', () => {
     expect(screen.getByText('Focus first').tagName).toBe('STRONG')
     expect(screen.getByRole('list')).toHaveTextContent('Pick one task')
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('cleans escaped and malformed emphasis markers from assistant answers', () => {
+    const message: ChatMessageType = {
+      id: 'clean-markdown-message',
+      role: 'bot',
+      content:
+        'The full form of \\*\\*API\\*\\* is **Application Programming Interface**.\n\nUse *clear language* and fix **unmatched markers.',
+      createdAt: '2026-08-18T10:30:00.000Z',
+      status: 'sent',
+    }
+
+    render(<ChatMessage message={message} />)
+
+    expect(screen.getByText('API').tagName).toBe('STRONG')
+    expect(screen.getByText('Application Programming Interface').tagName).toBe(
+      'STRONG',
+    )
+    expect(screen.getByText('clear language').tagName).toBe('EM')
+    expect(screen.getByText(/fix unmatched markers/i)).toBeInTheDocument()
+    expect(screen.getByRole('article')).not.toHaveTextContent('**')
   })
 
   it('copies a bot response without moving keyboard focus', async () => {

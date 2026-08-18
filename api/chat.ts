@@ -26,7 +26,7 @@ export default async function handler(request: ApiRequest, response: JsonRespons
   }
   if (!apiKey) {
     response.status(503).json({
-      error: 'Gemini is not configured. Add GEMINI_API_KEY to the server environment.',
+      error: 'Darwix AI is not configured. Ask the administrator to finish the secure connection setup.',
     })
     return
   }

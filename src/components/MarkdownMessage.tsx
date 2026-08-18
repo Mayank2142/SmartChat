@@ -5,10 +5,21 @@ interface MarkdownMessageProps {
 }
 
 function renderInline(text: string): ReactNode[] {
-  const tokenPattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g
-  return text.split(tokenPattern).filter(Boolean).map((token, index) => {
+  const normalizedText = text.replace(/\\([*_`])/g, '$1')
+  const tokenPattern = /(\[[^\]]+\]\(https?:\/\/[^)\s]+\)|`[^`\n]+`|\*\*\*[^*\n]+\*\*\*|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_)/g
+  return normalizedText.split(tokenPattern).filter(Boolean).map((token, index) => {
     const key = `${index}-${token.slice(0, 12)}`
+    if (token.startsWith('***') && token.endsWith('***')) {
+      return (
+        <strong key={key}>
+          <em>{token.slice(3, -3)}</em>
+        </strong>
+      )
+    }
     if (token.startsWith('**') && token.endsWith('**')) {
+      return <strong key={key}>{token.slice(2, -2)}</strong>
+    }
+    if (token.startsWith('__') && token.endsWith('__')) {
       return <strong key={key}>{token.slice(2, -2)}</strong>
     }
     if (token.startsWith('`') && token.endsWith('`')) {
@@ -22,7 +33,21 @@ function renderInline(text: string): ReactNode[] {
         </a>
       )
     }
-    return <Fragment key={key}>{token}</Fragment>
+    if (
+      (token.startsWith('*') && token.endsWith('*')) ||
+      (token.startsWith('_') && token.endsWith('_'))
+    ) {
+      return <em key={key}>{token.slice(1, -1)}</em>
+    }
+
+    // Unmatched double markers are usually malformed model formatting. Removing
+    // only repeated markers keeps ordinary single asterisks (for example 2 * 3)
+    // intact while preventing raw ** from leaking into answers.
+    return (
+      <Fragment key={key}>
+        {token.replace(/\*\*/g, '').replace(/__/g, '')}
+      </Fragment>
+    )
   })
 }
 

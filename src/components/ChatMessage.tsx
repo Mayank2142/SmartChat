@@ -25,12 +25,16 @@ const statusPresentation: Record<
 }
 
 interface ChatMessageProps {
+  animate?: boolean
   message: ChatMessageType
+  retryDisabled?: boolean
   onRetry?: (messageId: string) => void
 }
 
 export const ChatMessage = memo(function ChatMessage({
+  animate = false,
   message,
+  retryDisabled = false,
   onRetry,
 }: ChatMessageProps) {
   const isBot = message.role === 'bot'
@@ -39,7 +43,11 @@ export const ChatMessage = memo(function ChatMessage({
 
   return (
     <article
-      className={`message-row ${isBot ? 'message-row-bot' : 'message-row-user'}`}
+      className={`message-row ${isBot ? 'message-row-bot' : 'message-row-user'} ${
+        animate
+          ? `message-row-enter message-row-enter-${isBot ? 'bot' : 'user'}`
+          : ''
+      }`}
       aria-label={`${isBot ? 'Darwix AI' : 'Your'} message`}
     >
       {isBot && (
@@ -119,7 +127,7 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
               {onRetry && (
                 <RetryMessageButton
-                  disabled={message.status === 'retrying'}
+                  disabled={message.status === 'retrying' || retryDisabled}
                   onRetry={() => onRetry(message.id)}
                 />
               )}

@@ -13,7 +13,7 @@ export function RetryMessageButton({
     <button
       type="button"
       className="retry-button"
-      aria-label={disabled ? 'Retrying failed message' : 'Retry failed message'}
+      aria-label={disabled ? 'Retry unavailable while Darwix AI is responding' : 'Retry failed message'}
       disabled={disabled}
       onClick={onRetry}
     >
@@ -22,7 +22,7 @@ export function RetryMessageButton({
         className={disabled ? 'status-spin' : undefined}
         aria-hidden="true"
       />
-      {disabled ? 'Retrying' : 'Retry'}
+      {disabled ? 'Please wait' : 'Retry'}
     </button>
   )
 }

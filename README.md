@@ -6,16 +6,17 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 
 ## Screenshots
 
-| 1440px dark theme | 1440px light theme | 320px mobile |
+| Live clean answer | Thinking and send lock | 320px mobile |
 | --- | --- | --- |
-| ![Darwix AI live Gemini conversation](output/playwright/phase-10/live-gemini-dark.png) | ![Darwix AI light interface](output/playwright/phase-10/desktop-light.png) | ![Darwix AI mobile interface](output/playwright/phase-10/mobile-320-dark.png) |
+| ![Darwix AI clean formatted answer](output/playwright/phase-11/live-clean-markdown-dark.png) | ![Darwix AI thinking state with disabled send](output/playwright/phase-11/thinking-lock-dark.png) | ![Darwix AI mobile interface](output/playwright/phase-11/mobile-clean-markdown-dark.png) |
 
 ## Features
 
 - Responsive light and dark themes using the supplied blue, purple, alabaster, cod-gray, and prelude palette
 - Distinct user and assistant messages with accessible timestamps and delivery states
+- Clean semantic Markdown rendering for headings, emphasis, lists, links, and code without leaking raw formatting markers
 - Auto-growing multi-line composer with Enter to send and Shift + Enter for a newline
-- Input normalization, 4,000-character limit, counter, and duplicate-submit protection
+- Input normalization, 4,000-character limit, counter, and a global single-flight request lock
 - Live Google Gemini Interactions API responses with conversation context and configurable response detail
 - Image, PDF, text, CSV, audio, and video attachments with validation, previews, removal, drag-and-drop, and multimodal delivery
 - Temporary chats that are clearly identified and never written to saved history
@@ -23,11 +24,13 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 - Smart auto-scroll that follows new content only while the reader is near the bottom
 - Keyboard-accessible Jump to latest control when the reader is viewing older content
 - Multiple saved sessions with automatic titles, switching, deletion, collapsible desktop navigation, and a mobile drawer
-- Working settings for theme, response style, and Gemini connection status
+- Provider-neutral Darwix AI branding throughout the user-facing interface
+- Working settings for theme, response style, and the secure Darwix AI connection status
 - Versioned LocalStorage history with validation, interrupted-request recovery, and storage-failure fallback
 - Copy action for bot responses with non-disruptive success or failure feedback
 - Progressive history loading designed for conversations containing thousands of messages
 - Reduced-motion, reduced-transparency, forced-colors, safe-area, and small-screen support
+- Three restrained motion systems: directional message entrance, a state-driven 3D thinking orb, and composer/send feedback
 
 ## Tech stack
 
@@ -68,7 +71,11 @@ Compose → validate → append user message as sending → show typing
         → retrying → reuse the original message ID → sent or failed
 ```
 
-Each request is registered against its originating session. Switching sessions does not move an in-flight response. Clearing or deleting a session aborts only that session's requests.
+Each request is registered against its originating session. Only one request can be active across the application: the textarea remains editable, but Send, Enter submission, and Retry stay locked until the response succeeds or fails. A draft typed while waiting is preserved and becomes sendable immediately after completion. Switching sessions does not move an in-flight response. Clearing or deleting a session aborts only that session's requests.
+
+## Motion and response feedback
+
+New user and assistant messages use a short transform-and-opacity entrance from their respective side. While the assistant is working, a compact CSS 3D knowledge orb and sequential dots appear inside the assistant response row; the indicator is replaced by the finished response. Focus, hover, and press feedback use the same short easing curve. All non-essential motion is removed under `prefers-reduced-motion`, and no animation changes layout dimensions.
 
 ## Smart scrolling
 
@@ -92,7 +99,7 @@ LocalStorage is not secure storage; users should not enter sensitive information
 
 ## Gemini, error, and retry strategy
 
-The server validates message length, history size, attachment type/count/size, methods, Gemini configuration, upstream status, and response content. A failed message retains its original content and ID. Retry is locked while active, updates that same message to `retrying`, and never appends a duplicate user message. Rate-limit, configuration, authentication, invalid-response, and network errors surface as actionable messages without crashing the application.
+The server validates message length, history size, attachment type/count/size, methods, Gemini configuration, upstream status, and response content. A failed message retains its original content and ID. Retry is locked while any request is active, updates that same message to `retrying`, and never appends a duplicate user message. Provider details remain internal; rate-limit, configuration, authentication, invalid-response, and network errors use clear Darwix AI language without crashing the application.
 
 ## Accessibility
 
@@ -116,6 +123,7 @@ Automated axe audits report zero violations in the default, confirmation-dialog,
 - Appended responses extend the current window so a reader's oldest visible message is not removed.
 - Persistence is debounced and scheduled during idle time where supported.
 - Expensive blur is limited to major containers and reduced on mobile.
+- Motion uses GPU-friendly `transform` and `opacity`; the 3D indicator is CSS-only and exists only during an active response.
 - Long unbroken content uses safe wrapping and cannot widen the document.
 
 The project intentionally uses progressive windowing instead of variable-height virtualization. It keeps every displayed message in normal document flow, which preserves accessibility, retry controls, timestamps, and smart-scroll behavior while bounding the DOM size.
@@ -136,7 +144,7 @@ npm run lint
 npm run build
 ```
 
-The 42-test suite covers composition, attachments, Gemini request contracts, Markdown rendering, keyboard behavior, success and failure lifecycles, retries, timestamps, announcements, focus management, themes, settings, temporary sessions, smart scrolling, persistence recovery, storage failure, session actions, copy feedback, axe accessibility, scroll anchoring, and the large-history matrix.
+The 45-test suite covers composition, attachments, Gemini request contracts, clean Markdown rendering and announcements, the global request lock and draft preservation, keyboard behavior, success and failure lifecycles, retries, timestamps, focus management, themes, settings, temporary sessions, smart scrolling, persistence recovery, storage failure, session actions, copy feedback, axe accessibility, scroll anchoring, and the large-history matrix.
 
 Real-browser checks include 320×720, 375×812, 768×1024, 1024×768, and 1440×900 Chromium viewports plus desktop smoke checks in Microsoft Edge and Firefox. They verify horizontal overflow, composer visibility, responsive navigation, keyboard focus wrapping, skip navigation, axe results, console errors, long-message wrapping, and large-history rendering.
 

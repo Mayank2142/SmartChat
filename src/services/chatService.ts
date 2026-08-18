@@ -21,7 +21,7 @@ interface SendMessageOptions {
   signal?: AbortSignal
 }
 
-export interface GeminiStatus {
+export interface AssistantStatus {
   configured: boolean
   model: string
 }
@@ -50,10 +50,10 @@ async function readError(response: Response) {
   }
 
   if (response.status === 429) {
-    return 'Gemini is receiving too many requests. Wait a moment and retry.'
+    return 'Darwix AI is receiving many requests. Wait a moment and retry.'
   }
   if (response.status === 503) {
-    return 'Gemini is not configured yet. Add GEMINI_API_KEY to the server environment.'
+    return 'Darwix AI is not configured yet. Ask the administrator to finish the secure connection setup.'
   }
   return 'Darwix AI could not complete this request. Please try again.'
 }
@@ -83,7 +83,7 @@ async function sendMessage(
     model?: unknown
   }
   if (typeof payload.content !== 'string' || !payload.content.trim()) {
-    throw new ChatServiceError('Gemini returned an empty response. Please retry.')
+    throw new ChatServiceError('Darwix AI returned an empty response. Please retry.')
   }
 
   return {
@@ -92,13 +92,13 @@ async function sendMessage(
   }
 }
 
-async function getStatus(signal?: AbortSignal): Promise<GeminiStatus> {
+async function getStatus(signal?: AbortSignal): Promise<AssistantStatus> {
   const response = await fetch('/api/chat', { signal })
-  if (!response.ok) throw new ChatServiceError('Could not check Gemini status.')
-  const payload = (await response.json()) as Partial<GeminiStatus>
+  if (!response.ok) throw new ChatServiceError('Could not check Darwix AI status.')
+  const payload = (await response.json()) as Partial<AssistantStatus>
   return {
     configured: payload.configured === true,
-    model: typeof payload.model === 'string' ? payload.model : 'Gemini',
+    model: typeof payload.model === 'string' ? payload.model : 'Darwix AI',
   }
 }
 

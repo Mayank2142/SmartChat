@@ -17,7 +17,7 @@ interface MessageListProps {
   containerRef?: RefObject<HTMLDivElement | null>
   isTyping?: boolean
   messages: ChatMessageType[]
-  pendingResponses?: number
+  retryDisabled?: boolean
   onRetry?: (messageId: string) => void
 }
 
@@ -30,7 +30,7 @@ export const MessageList = memo(function MessageList({
   containerRef,
   isTyping = false,
   messages,
-  pendingResponses = 0,
+  retryDisabled = false,
   onRetry,
 }: MessageListProps) {
   const [visibleCount, setVisibleCount] = useState(() =>
@@ -124,14 +124,26 @@ export const MessageList = memo(function MessageList({
         aria-label="Messages"
         start={firstVisibleIndex + 1}
       >
-        {visibleMessages.map((message) => (
-          <li key={message.id}>
-            <ChatMessage message={message} onRetry={onRetry} />
-          </li>
-        ))}
+        {visibleMessages.map((message, visibleIndex) => {
+          const absoluteIndex = firstVisibleIndex + visibleIndex
+          const animate =
+            message.status === 'sending' ||
+            absoluteIndex >= previousLengthRef.current
+
+          return (
+            <li key={message.id}>
+              <ChatMessage
+                animate={animate}
+                message={message}
+                retryDisabled={retryDisabled}
+                onRetry={onRetry}
+              />
+            </li>
+          )
+        })}
         {isTyping && (
           <li>
-            <TypingIndicator pendingResponses={pendingResponses} />
+            <TypingIndicator />
           </li>
         )}
       </ol>

@@ -53,7 +53,7 @@ export function SessionSidebar({
             <p className="sidebar-brand-name">Darwix AI</p>
             <p className="sidebar-brand-tagline">
               <Sparkles size={10} aria-hidden="true" />
-              Gemini workspace
+              Intelligent workspace
             </p>
           </div>
         )}

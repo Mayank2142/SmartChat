@@ -20,6 +20,7 @@ import { MAX_MESSAGE_LENGTH, normalizeMessageContent } from '../utils/message'
 
 interface ChatComposerProps {
   inputRef: RefObject<HTMLTextAreaElement | null>
+  isGenerating: boolean
   value: string
   onOpenSettings: () => void
   onValueChange: (value: string) => void
@@ -28,6 +29,7 @@ interface ChatComposerProps {
 
 export function ChatComposer({
   inputRef,
+  isGenerating,
   value,
   onOpenSettings,
   onValueChange,
@@ -40,7 +42,9 @@ export function ChatComposer({
   const [isReadingFiles, setIsReadingFiles] = useState(false)
   const normalizedValue = normalizeMessageContent(value)
   const canSend =
-    (normalizedValue.length > 0 || attachments.length > 0) && !isReadingFiles
+    (normalizedValue.length > 0 || attachments.length > 0) &&
+    !isReadingFiles &&
+    !isGenerating
   const showCount = value.length >= MAX_MESSAGE_LENGTH * 0.8
 
   useLayoutEffect(() => {
@@ -119,8 +123,9 @@ export function ChatComposer({
   return (
     <div className="composer-wrap">
       <form
-        className="composer"
+        className={`composer ${isGenerating ? 'composer-generating' : ''}`}
         aria-label="Send a message"
+        aria-busy={isGenerating}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
         onSubmit={handleSubmit}
@@ -168,7 +173,7 @@ export function ChatComposer({
           className="composer-input"
           placeholder="Ask Darwix AI anything..."
           value={value}
-          aria-describedby="composer-help composer-count attachment-error"
+          aria-describedby="composer-state composer-count attachment-error"
           onChange={(event) => onValueChange(event.target.value)}
           onKeyDown={handleKeyDown}
         />
@@ -204,7 +209,13 @@ export function ChatComposer({
               type="submit"
               className="send-button"
               aria-label="Send message"
+              aria-describedby="composer-state"
               disabled={!canSend}
+              title={
+                isGenerating
+                  ? 'Wait for Darwix AI to finish responding'
+                  : 'Send message'
+              }
             >
               <ArrowUp size={18} strokeWidth={2.2} aria-hidden="true" />
             </button>
@@ -218,8 +229,15 @@ export function ChatComposer({
       >
         {attachmentError}
       </p>
-      <p id="composer-help" className="composer-help">
-        Press Enter to send · Shift + Enter for a new line · Drop files to attach
+      <p
+        id="composer-state"
+        className={`composer-help ${isGenerating ? 'composer-help-active' : ''}`}
+        role={isGenerating ? 'status' : undefined}
+        aria-live={isGenerating ? 'polite' : undefined}
+      >
+        {isGenerating
+          ? 'Darwix AI is responding · Send unlocks when the answer is ready'
+          : 'Press Enter to send · Shift + Enter for a new line · Drop files to attach'}
       </p>
     </div>
   )

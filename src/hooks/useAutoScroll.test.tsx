@@ -53,7 +53,7 @@ describe('smart auto-scroll', () => {
 
     await user.click(screen.getByRole('button', { name: /append content/i }))
 
-    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'auto' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' })
     expect(
       screen.queryByRole('button', { name: /jump to latest/i }),
     ).not.toBeInTheDocument()

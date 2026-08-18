@@ -1,6 +1,6 @@
 import { Bot, Check, ExternalLink, Settings2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { chatService, type GeminiStatus } from '../services/chatService'
+import { chatService, type AssistantStatus } from '../services/chatService'
 import type { ResponseStyle, ThemeMode } from '../types/chat'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -34,14 +34,14 @@ export function SettingsDialog({
   const previousFocusRef = useRef(
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   )
-  const [geminiStatus, setGeminiStatus] = useState<GeminiStatus | null>(null)
+  const [assistantStatus, setAssistantStatus] = useState<AssistantStatus | null>(null)
   const [statusUnavailable, setStatusUnavailable] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
     void chatService
       .getStatus(controller.signal)
-      .then(setGeminiStatus)
+      .then(setAssistantStatus)
       .catch((error: unknown) => {
         if (error instanceof Error && error.name === 'AbortError') return
         setStatusUnavailable(true)
@@ -82,9 +82,9 @@ export function SettingsDialog({
 
   const connectionLabel = statusUnavailable
     ? 'Status unavailable'
-    : geminiStatus?.configured
+    : assistantStatus?.configured
       ? 'Connected'
-      : geminiStatus
+      : assistantStatus
         ? 'API key required'
         : 'Checking connection…'
 
@@ -135,7 +135,7 @@ export function SettingsDialog({
           <section className="settings-section settings-section-stacked" aria-labelledby="response-heading">
             <div>
               <h3 id="response-heading">Response style</h3>
-              <p>Choose how much detail Gemini should normally provide.</p>
+              <p>Choose how much detail Darwix AI should normally provide.</p>
             </div>
             <div className="response-style-options" role="radiogroup" aria-label="Response style">
               {responseStyles.map((option) => (
@@ -159,11 +159,11 @@ export function SettingsDialog({
 
           <section className="settings-section" aria-labelledby="model-heading">
             <div className="settings-model-copy">
-              <h3 id="model-heading">Gemini connection</h3>
-              <p>{geminiStatus?.model ?? 'Gemini 3.6 Flash'} · server-side API</p>
+              <h3 id="model-heading">Darwix AI connection</h3>
+              <p>Private server connection</p>
             </div>
             <span
-              className={`connection-badge ${geminiStatus?.configured ? 'connection-badge-ready' : ''}`}
+              className={`connection-badge ${assistantStatus?.configured ? 'connection-badge-ready' : ''}`}
               role="status"
             >
               <Bot size={13} aria-hidden="true" />
@@ -171,10 +171,10 @@ export function SettingsDialog({
             </span>
           </section>
 
-          {geminiStatus && !geminiStatus.configured && (
+          {assistantStatus && !assistantStatus.configured && (
             <div className="settings-api-help">
               <span>
-                Add <code>GEMINI_API_KEY</code> to <code>.env.local</code>, then restart the app.
+                Complete the AI service setup in <code>.env.local</code>, then restart the app.
               </span>
               <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
                 Get an API key <ExternalLink size={13} aria-hidden="true" />

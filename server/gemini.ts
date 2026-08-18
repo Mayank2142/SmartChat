@@ -194,20 +194,18 @@ export async function requestGemini(
   const payload = (await response.json().catch(() => ({}))) as GeminiPayload
 
   if (!response.ok) {
-    const upstreamMessage =
-      typeof payload.error?.message === 'string' ? payload.error.message : ''
     const message =
       response.status === 429
-        ? 'Gemini rate limit reached. Wait a moment and retry.'
+        ? 'Darwix AI is receiving many requests. Wait a moment and retry.'
         : response.status === 401 || response.status === 403
-          ? 'Gemini rejected the server API key. Check GEMINI_API_KEY.'
-          : upstreamMessage || 'Gemini could not complete this request.'
+          ? 'Darwix AI is not connected correctly. Ask the administrator to check the service configuration.'
+          : 'Darwix AI could not complete this request. Please try again.'
     throw new GeminiRequestError(message, response.status)
   }
 
   const content = extractResponseText(payload)
   if (!content) {
-    throw new GeminiRequestError('Gemini returned an empty response.', 502)
+    throw new GeminiRequestError('Darwix AI returned an empty response.', 502)
   }
   return { content, model }
 }

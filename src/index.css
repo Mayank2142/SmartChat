@@ -1427,6 +1427,25 @@ body {
   grid-template-columns: 4.75rem minmax(0, 1fr);
 }
 
+.workspace-shell,
+.chat-panel,
+.message-stage,
+.message-canvas,
+.composer-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.workspace-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.composer {
+  min-width: 0;
+  max-width: 52rem;
+}
+
 .sidebar-panel,
 .drawer-panel {
   border-color: var(--dw-border);
@@ -2167,5 +2186,220 @@ body {
   .settings-api-help {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+/* Purposeful motion: message arrival, AI thinking, and composer interaction. */
+:root {
+  --dw-motion-fast: 160ms;
+  --dw-motion-normal: 220ms;
+  --dw-motion-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+.message-row-enter {
+  --message-enter-x: -0.3rem;
+  animation: message-enter var(--dw-motion-normal) var(--dw-motion-ease) both;
+}
+
+.message-row-enter-user {
+  --message-enter-x: 0.3rem;
+}
+
+.message-row-enter-bot {
+  --message-enter-x: -0.3rem;
+}
+
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--message-enter-x), 0.5rem, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.typing-content {
+  min-width: 10.4rem;
+  min-height: 3.15rem;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  perspective: 16rem;
+}
+
+.thinking-orb {
+  position: relative;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  transform-style: preserve-3d;
+}
+
+.thinking-orb::after {
+  position: absolute;
+  z-index: -1;
+  width: 1.65rem;
+  height: 0.55rem;
+  bottom: -0.15rem;
+  border-radius: 50%;
+  background: rgb(0 158 255 / 0.2);
+  filter: blur(0.35rem);
+  content: "";
+  transform: rotateX(72deg);
+}
+
+.thinking-orb-core {
+  width: 0.74rem;
+  height: 0.74rem;
+  border: 1px solid rgb(255 255 255 / 0.34);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, #ffffff 0 6%, #5de4ff 15%, #0085ff 46%, #9360ff 100%);
+  box-shadow:
+    0 0 0.7rem rgb(0 158 255 / 0.54),
+    0 0 1.3rem rgb(147 96 255 / 0.24);
+}
+
+.thinking-orb-ring {
+  --ring-x: 68deg;
+  --ring-y: 0deg;
+  position: absolute;
+  width: 1.78rem;
+  height: 1.78rem;
+  border: 1px solid rgb(0 158 255 / 0.55);
+  border-radius: 50%;
+  transform-style: preserve-3d;
+  animation: thinking-orbit 2.4s linear infinite;
+}
+
+.thinking-orb-ring-vertical {
+  --ring-x: 0deg;
+  --ring-y: 68deg;
+  border-color: rgb(147 96 255 / 0.5);
+  animation-duration: 3s;
+  animation-direction: reverse;
+}
+
+@keyframes thinking-orbit {
+  from {
+    transform: rotateX(var(--ring-x)) rotateY(var(--ring-y)) rotateZ(0deg);
+  }
+  to {
+    transform: rotateX(var(--ring-x)) rotateY(var(--ring-y)) rotateZ(360deg);
+  }
+}
+
+.typing-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.typing-label {
+  color: var(--dw-text-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+}
+
+.typing-dot {
+  background: var(--dw-primary-bright);
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+.composer,
+.composer-tool,
+.send-button,
+.temporary-chat-button,
+.sidebar-new-chat,
+.session-item,
+.suggestion-card,
+.message-action,
+.retry-button,
+.theme-toggle-option,
+.response-style-option,
+.attachment-chip button {
+  transition-duration: var(--dw-motion-fast);
+  transition-timing-function: var(--dw-motion-ease);
+}
+
+.composer-generating {
+  border-color: rgb(0 158 255 / 0.3);
+}
+
+.composer-help-active {
+  color: var(--dw-primary-bright);
+}
+
+.send-button {
+  transition-property: transform, opacity, filter, border-color, box-shadow;
+}
+
+.send-button:not(:disabled):hover {
+  transform: translateY(-1px) scale(1.035);
+  box-shadow: 0 10px 26px rgb(0 133 255 / 0.3);
+}
+
+.send-button:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+.composer-tool:not(:disabled):active,
+.icon-button:not(:disabled):active,
+.message-action:not(:disabled):active,
+.temporary-chat-button:not(:disabled):active,
+.sidebar-new-chat:not(:disabled):active,
+.suggestion-card:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.message-canvas {
+  scroll-behavior: smooth;
+}
+
+@media (max-width: 640px) {
+  .typing-content {
+    min-width: 9.6rem;
+    min-height: 2.9rem;
+  }
+
+  .thinking-orb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .thinking-orb-ring {
+    width: 1.55rem;
+    height: 1.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-row-enter {
+    opacity: 1;
+    transform: none;
+  }
+
+  .thinking-orb-ring,
+  .typing-dot {
+    animation: none !important;
   }
 }

@@ -1,14 +1,7 @@
 import { Bot } from 'lucide-react'
 
-interface TypingIndicatorProps {
-  pendingResponses?: number
-}
-
-export function TypingIndicator({ pendingResponses = 1 }: TypingIndicatorProps) {
-  const announcement =
-    pendingResponses > 1
-      ? `Darwix AI is preparing ${pendingResponses} responses`
-      : 'Darwix AI is typing'
+export function TypingIndicator() {
+  const announcement = 'Darwix AI is thinking'
 
   return (
     <div className="typing-row" role="status" aria-live="polite" aria-label={announcement}>
@@ -17,9 +10,19 @@ export function TypingIndicator({ pendingResponses = 1 }: TypingIndicatorProps) 
       </div>
       <div className="typing-content">
         <p className="sr-only">{announcement}</p>
-        <span className="typing-dot" aria-hidden="true" />
-        <span className="typing-dot" aria-hidden="true" />
-        <span className="typing-dot" aria-hidden="true" />
+        <span className="thinking-orb" aria-hidden="true">
+          <span className="thinking-orb-core" />
+          <span className="thinking-orb-ring thinking-orb-ring-horizontal" />
+          <span className="thinking-orb-ring thinking-orb-ring-vertical" />
+        </span>
+        <span className="typing-copy" aria-hidden="true">
+          <span className="typing-label">Thinking</span>
+          <span className="typing-dots">
+            <span className="typing-dot" />
+            <span className="typing-dot" />
+            <span className="typing-dot" />
+          </span>
+        </span>
       </div>
     </div>
   )

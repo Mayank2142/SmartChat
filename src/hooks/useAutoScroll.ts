@@ -116,7 +116,7 @@ export function useAutoScroll({
     }
 
     if (isNearBottomRef.current) {
-      scrollToLatest('auto')
+      scrollToLatest()
     } else {
       setHasNewContent(true)
     }

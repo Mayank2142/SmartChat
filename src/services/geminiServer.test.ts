@@ -87,7 +87,7 @@ describe('Gemini server adapter', () => {
       ),
     ).rejects.toMatchObject({
       status: 403,
-      message: expect.stringMatching(/rejected.*api key/i),
+      message: expect.stringMatching(/not connected correctly/i),
     })
   })
 })

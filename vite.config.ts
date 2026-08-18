@@ -55,7 +55,7 @@ function localGeminiApi(apiKey: string, model: string): Plugin {
         if (!apiKey) {
           sendJson(response, 503, {
             error:
-              'Gemini is not configured. Add GEMINI_API_KEY to .env.local and restart the development server.',
+              'Darwix AI is not configured. Ask the administrator to finish the secure connection setup.',
           })
           return
         }
