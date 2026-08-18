@@ -11,7 +11,8 @@ Darwix AI Chat is a polished, responsive, and accessible Gemini-powered chat app
 | Source repository | [Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat) |
 | Screenshots | [Product tour](#product-tour) |
 | Implementation documentation | [Project structure](#project-structure) and [end-to-end flow](#end-to-end-flow) |
-| Local demo | Follow [Local setup](#local-setup) to run the complete application |
+| Live demo | [smart-chat-green.vercel.app](https://smart-chat-green.vercel.app/) |
+| Local setup | Follow [Local setup](#local-setup) to run the complete application |
 
 ## Product tour
 
@@ -248,7 +249,7 @@ npm run preview
 - LocalStorage capacity varies, so extremely large histories may eventually switch to in-memory mode.
 - Attachments are limited to three files and 3 MB total per request so they remain below common serverless request limits.
 - Safari/WebKit and physical iOS/Android devices were not available in this local environment and should receive a final smoke test before public deployment.
-- The source repository is published at [github.com/Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat). A hosted live-demo URL is not included, so reviewers should use the documented local setup.
+- The source repository is published at [github.com/Mayank2142/SmartChat](https://github.com/Mayank2142/SmartChat), and the production deployment is available at [smart-chat-green.vercel.app](https://smart-chat-green.vercel.app/).
 
 ## Deployment
 
@@ -264,4 +265,4 @@ npx vercel env add GEMINI_API_KEY
 npx vercel --prod
 ```
 
-The source code and versioned screenshots are available in the [SmartChat repository](https://github.com/Mayank2142/SmartChat). Vercel deployment remains optional and requires configuring `GEMINI_API_KEY` in the deployment environment.
+The source code and versioned screenshots are available in the [SmartChat repository](https://github.com/Mayank2142/SmartChat). The working production deployment is [smart-chat-green.vercel.app](https://smart-chat-green.vercel.app/); it reads `GEMINI_API_KEY` only from the secure Vercel environment.
