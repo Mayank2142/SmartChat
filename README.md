@@ -65,33 +65,79 @@ The composer stays reachable at narrow widths, navigation moves into a mobile dr
 
 No state-management, animation, or virtualization library is required.
 
-## Architecture
+## Project structure
 
 ```text
-src/
-  components/   Shell, navigation, messages, composer, dialogs, and controls
-  hooks/        Sessions, preferences, persistence, smart scroll, and announcements
-  services/     Browser-side same-origin Gemini client
-  types/        Chat, message, session, and persistence contracts
-  utils/        Attachments, date, message, and versioned storage helpers
-  test/         Shared browser-like test setup
-api/            Vercel `/api/chat` function
-server/         Validated Gemini Interactions API adapter shared with local Vite
+darwix-ai-chat/
+├── .github/workflows/ci.yml       # Lint, test, and production-build quality gate
+├── api/chat.ts                    # Vercel serverless POST /api/chat entry point
+├── server/gemini.ts               # Validation and server-only Google AI adapter
+├── public/                        # Favicon and crawler metadata
+├── src/
+│   ├── components/
+│   │   ├── AppHeader.tsx          # Header and navigation controls
+│   │   ├── ChatComposer.tsx       # Multiline input, attachments, and send state
+│   │   ├── ChatMessage.tsx        # User/assistant row and delivery actions
+│   │   ├── MarkdownMessage.tsx    # Safe semantic response rendering
+│   │   ├── MessageList.tsx        # Accessible log and progressive history window
+│   │   ├── SessionSidebar.tsx     # Saved and temporary chat navigation
+│   │   ├── SettingsDialog.tsx     # Theme, response style, and connection status
+│   │   └── TypingIndicator.tsx    # Darwix AI thinking state and 3D orb
+│   ├── hooks/
+│   │   ├── useChatSessions.ts     # Sessions, single-flight requests, and retry
+│   │   ├── useAutoScroll.ts       # Follow-latest and scroll-position preservation
+│   │   ├── useLocalStorage.ts     # Debounced, resilient session persistence
+│   │   └── useAppPreferences.ts   # Theme and response-style preferences
+│   ├── services/chatService.ts    # Browser client for the same-origin API
+│   ├── types/chat.ts              # Message, attachment, and session contracts
+│   ├── utils/                     # Attachment, date, message, and storage helpers
+│   ├── test/setup.ts              # Shared Vitest browser environment
+│   ├── App.tsx                    # Application shell and feature composition
+│   ├── index.css                  # Responsive themes, glass UI, and motion system
+│   └── main.tsx                   # React application entry point
+├── output/playwright/             # Versioned assessment screenshots
+├── .env.example                   # Server environment variable template
+├── vercel.json                    # Deployment and security-header configuration
+├── vite.config.ts                 # Vite app and local API middleware
+├── vitest.config.ts               # Unit, integration, and accessibility tests
+└── package.json                   # Scripts and dependencies
 ```
 
-`useChatSessions` owns session state and the asynchronous request lifecycle. UI components receive narrow props and remain focused on presentation and interaction. The browser service sends validated requests only to `/api/chat`; the server adapter builds the Gemini multimodal input and keeps credentials outside the client bundle.
+`useChatSessions` owns session state and the asynchronous request lifecycle. UI components receive narrow props and remain focused on presentation and interaction. The browser service sends validated requests only to `/api/chat`; the server adapter builds the multimodal provider input and keeps credentials outside the client bundle.
 
-## Message lifecycle
+## End-to-end flow
 
-```text
-Compose → validate → append user message as sending → show typing
-        → request succeeds → mark user message sent → append bot response
-
-        → request fails → mark the same message failed → expose Retry
-        → retrying → reuse the original message ID → sent or failed
+```mermaid
+flowchart TD
+    A[User composes a message] --> B{Client validation passes?}
+    B -- No --> C[Show accessible inline feedback]
+    B -- Yes --> D[Append user message with sending status]
+    D --> E[Lock Send, Enter submission, and Retry]
+    E --> F[Show Darwix AI thinking indicator]
+    F --> G[POST message, context, and attachments to /api/chat]
+    G --> H[Server validates the request and reads its API key]
+    H --> I[Build provider request and call the AI model]
+    I --> J{Request succeeds?}
+    J -- Yes --> K[Return sanitized assistant content]
+    K --> L[Mark user message sent and render the response]
+    L --> M[Persist saved chat, announce result, and smart-scroll]
+    M --> N[Unlock the composer]
+    J -- No --> O[Map failure to a safe Darwix AI error]
+    O --> P[Mark the original message failed and show Retry]
+    P --> Q[Retry the same message ID without a duplicate]
+    Q --> E
 ```
 
-Each request is registered against its originating session. Only one request can be active across the application: the textarea remains editable, but Send, Enter submission, and Retry stay locked until the response succeeds or fails. A draft typed while waiting is preserved and becomes sendable immediately after completion. Switching sessions does not move an in-flight response. Clearing or deleting a session aborts only that session's requests.
+1. **Compose and validate:** The auto-growing textarea accepts multiple lines. Enter submits, Shift + Enter adds a newline, and the client validates trimmed content, length, attachment count, type, and total size.
+2. **Optimistic message state:** A valid message is immediately appended with a stable ID and `sending` state. The global single-flight lock disables Send, keyboard submission, and Retry while leaving the textarea available for the next draft.
+3. **Secure browser request:** `chatService` sends the message, bounded conversation context, response preference, and supported attachment data to the same-origin `POST /api/chat` endpoint. No provider credential is present in browser code.
+4. **Server processing:** The server validates the payload again, reads `GEMINI_API_KEY` from its environment, converts history and attachments into multimodal model input, and calls the configured AI model.
+5. **Successful response:** The server returns assistant text, the original user message becomes `sent`, and a Darwix AI message replaces the thinking indicator. Semantic Markdown, timestamp details, screen-reader announcements, smart scrolling, and saved-session persistence update together.
+6. **Failure and retry:** Network, configuration, rate-limit, and invalid-response failures are converted to provider-neutral messages. The original message becomes `failed`; Retry reuses its ID and content so the transcript never gains a duplicate.
+7. **Session behavior:** Requests remain attached to their originating session if the user switches chats. Saved sessions are restored from versioned LocalStorage, while temporary sessions are clearly labeled and are never written to history.
+8. **Large-history behavior:** Only the latest bounded message window mounts initially. Loading an older batch preserves the reader's visual position, while new responses follow automatically only when the reader is already near the bottom.
+
+Clearing or deleting a session aborts only that session's active request. A draft typed while waiting is preserved and becomes sendable as soon as the current request reaches success or failure.
 
 ## Motion and response feedback
 
